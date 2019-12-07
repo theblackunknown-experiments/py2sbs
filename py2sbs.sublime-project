@@ -1,0 +1,55 @@
+{
+    "build_systems":
+    [
+        {
+            "file_regex": "[ ]*File \"(...*?)\", line ([0-9]*)",
+            "name": "Python to SBS",
+            "variants":
+            [
+                {
+                    "cmd":
+                    [
+                        "py", "-3", "--",
+                        "py2sbs.py",
+                        "samples/00_constant.py",
+                        "-v"
+                    ],
+                    "name": "Generate 00_constant.sbs (verbose)"
+                },
+                {
+                    "cmd":
+                    [
+                        "py", "-3", "--",
+                        "py2sbs.py",
+                        "samples/01_intrinsics.py",
+                        "-v"
+                    ],
+                    "name": "Generate 01_intrinsics.sbs (verbose)"
+                },
+                {
+                    "cmd":
+                    [
+                        "py", "-3", "--",
+                        "py2sbs.py",
+                        "samples/02_external_functions.py",
+                        "-vv"
+                    ],
+                    "name": "Generate 02_external_functions.sbs (verbose)"
+                }
+            ],
+            "working_dir": "${project_path}"
+        }
+    ],
+    "folders":
+    [
+        {
+            "path": "."
+        },
+        {
+            "path": "C:/devel/_py2sbs"
+        },
+        {
+            "path": "C:/Users/andre/AppData/Local/Programs/Python/Python37/Lib/site-packages/pysbs"
+        }
+	]
+}
