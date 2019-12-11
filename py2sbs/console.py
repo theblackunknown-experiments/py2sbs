@@ -3,6 +3,7 @@
 import ast
 import logging
 import argparse
+import tempfile
 
 from pathlib import Path
 
@@ -69,8 +70,18 @@ def main():
             logger.info(dump(ast_root_node))
             return 0
 
-        with SBSGenerator(Path(arguments.output.name)) as generator:
-            generator.visit(ast_root_node)
+        if arguments.output:
+            path_output = Path(arguments.output.name)
+            with SBSGenerator(path_output) as generator:
+                generator.visit(ast_root_node)
+        else:
+            with tempfile.NamedTemporaryFile(mode='wt', encoding='utf-8', suffix='.sbs') as file:
+                logger.debug(file.name)
+                with SBSGenerator(file.name) as generator:
+                    generator.visit(ast_root_node)
+
+                with open(file.name) as doppelganger:
+                    print(doppelganger.read())
 
         return 0
     except (ValueError, SyntaxError) as e:
