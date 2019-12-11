@@ -68,6 +68,12 @@ def main():
         default=0,
     )
 
+    parser.add_argument(
+        '--pretty-print',
+        help='Print source AST instead of transpiling',
+        action='store_true',
+    )
+
     arguments = parser.parse_args( )
 
     if arguments.source_file is None:
@@ -83,7 +89,9 @@ def main():
             filename=getattr(arguments.source_file, 'name', '<string>'),
         )
 
-        logger.info(dump(ast_root_node))
+        if arguments.pretty_print:
+            logger.info(dump(ast_root_node))
+            return 0
 
         return 0
     except (ValueError, SyntaxError) as e:
