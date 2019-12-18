@@ -9,23 +9,21 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-from py2sbs import (
-    __version__ as py2sbsversion,
-    __doc__ as py2sbsdoc,
-)
-
-from py2sbs.ast import (
+from py2xyz import (
+    __name__ as modulename,
+    __version__ as moduleversion,
+    __doc__ as moduledoc,
     dump,
 )
 
-from py2sbs.codegen import (
-    Generator as SBSGenerator,
+from py2xyz.sbs.transformer import (
+    TranspilerNodeTransformer as SubstanceTranspiler,
 )
 
-SETTINGS_FOLDER = Path.home() / '.py2sbs' / py2sbsversion
+SETTINGS_FOLDER = Path.home() / f'.{modulename}' / moduleversion
 
 def main():
-    parser = argparse.ArgumentParser(description=py2sbsdoc)
+    parser = argparse.ArgumentParser(description=moduledoc)
     parser.add_argument(
         'source_file',
         type=argparse.FileType('rt', encoding='utf-8'),
@@ -33,9 +31,11 @@ def main():
     )
 
     parser.add_argument(
-        '-o', '--output',
-        type=argparse.FileType('wt', encoding='utf-8'),
-        help='source filepath to process (supported extensions: .py)',
+        '-t', '--target',
+        choices=[
+            'sbs',
+        ],
+        help='target language',
     )
 
     parser.add_argument(
@@ -57,31 +57,26 @@ def main():
         logger.error(f'missing <source_file>')
         return 1
 
-    if arguments.verbose >= 1:
+    if arguments.verbose >= 2:
         logger.setLevel( logging.DEBUG )
+    elif arguments.verbose >= 1:
+        logger.setLevel( logging.INFO )
 
     try:
-        ast_root_node = ast.parse(
+        ast_source_root_node = ast.parse(
             source=arguments.source_file.read(),
             filename=getattr(arguments.source_file, 'name', '<string>'),
         )
 
         if arguments.pretty_print:
-            logger.info(dump(ast_root_node))
+            logger.info(dump(ast_source_root_node))
             return 0
 
-        if arguments.output:
-            path_output = Path(arguments.output.name)
-            with SBSGenerator(path_output) as generator:
-                generator.visit(ast_root_node)
-        else:
-            with tempfile.NamedTemporaryFile(mode='wt', encoding='utf-8', suffix='.sbs') as file:
-                logger.debug(file.name)
-                with SBSGenerator(file.name) as generator:
-                    generator.visit(ast_root_node)
-
-                with open(file.name) as doppelganger:
-                    print(doppelganger.read())
+        if arguments.target == 'sbs':
+            logger.info(f'Transpiling to {arguments.target}')
+            transformer = SubstanceTranspiler()
+            ast_target_root_node = transformer.visit(ast_source_root_node)
+            print(dump(ast_target_root_node))
 
         return 0
     except (ValueError, SyntaxError) as e:

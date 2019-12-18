@@ -6,9 +6,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-from py2sbs.ast import (
-    dump,
-)
+from py2sbs import dump
 
 class NodeNotSupported(RuntimeError):
     pass
