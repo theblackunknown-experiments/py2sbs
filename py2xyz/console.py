@@ -17,7 +17,7 @@ from py2xyz import (
 )
 
 from py2xyz.sbs.transformer import (
-    TranspilerNodeTransformer as SubstanceTranspiler,
+    SubstancePackageTranspiler,
 )
 
 SETTINGS_FOLDER = Path.home() / f'.{modulename}' / moduleversion
@@ -74,7 +74,7 @@ def main():
 
         if arguments.target == 'sbs':
             logger.info(f'Transpiling to {arguments.target}')
-            transformer = SubstanceTranspiler()
+            transformer = SubstancePackageTranspiler()
             ast_target_root_node = transformer.visit(ast_source_root_node)
             print(dump(ast_target_root_node))
 

@@ -20,7 +20,7 @@ from py2xyz.sbs.ast import (
 class UnsupportedASTNode(ValueError):
     pass
 
-class TranspilerNodeTransformer(ast.NodeTransformer):
+class SubstancePackageTranspiler(ast.NodeTransformer):
 
     def visit_Module(self, node : ast.Module):
         return ast.copy_location(
@@ -68,6 +68,8 @@ class TranspilerNodeTransformer(ast.NodeTransformer):
 
         for parameter, node_default in zip(parameters[-len(node.defaults):], node.defaults):
             parameter.value = node_default
+            # TODO make sure node_default is constant expression
+            # TODO deduce type from node_default
 
         return parameters
 
