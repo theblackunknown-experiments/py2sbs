@@ -4,6 +4,7 @@ import ast
 import logging
 import argparse
 import tempfile
+import traceback
 
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from py2xyz import (
 )
 
 from py2xyz.sbs.transformer import (
+    UnsupportedASTNode,
     SubstancePackageTranspiler,
 )
 
@@ -79,8 +81,11 @@ def main():
             print(dump(ast_target_root_node))
 
         return 0
-    except (ValueError, SyntaxError) as e:
-        logger.error(f'Invalid DSL : {e}')
+    except (UnsupportedASTNode):
+        logger.error(f'Unable to transpile to Substance : {traceback.format_exc()}')
+        return -1
+    except (ValueError, SyntaxError):
+        logger.error(f'Invalid DSL : {traceback.format_exc()}')
         return -1
 
 if __name__ == '__main__':
