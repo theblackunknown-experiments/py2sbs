@@ -18,8 +18,13 @@ from py2xyz import (
 )
 
 from py2xyz.sbs.transformer import (
-    UnsupportedASTNode,
-    SubstancePackageTranspiler,
+    UnsupportedASTNode as SubstanceTransformerUnsupportedASTNode,
+    PackageTranspiler as SubstancePackageTranspiler,
+)
+
+from py2xyz.sbs.codegen import (
+    UnsupportedASTNode as SubstanceCodegenUnsupportedASTNode,
+    PackageGenerator as SubstancePackageGenerator,
 )
 
 SETTINGS_FOLDER = Path.home() / f'.{modulename}' / moduleversion
@@ -41,6 +46,12 @@ def main():
     )
 
     parser.add_argument(
+        '-o', '--output',
+        type=argparse.FileType(mode='wt', encoding='utf-8'),
+        help='Where to write to generated code',
+    )
+
+    parser.add_argument(
         '-v', '--verbose',
         help='Make runtime more verbose, more "v", more fun',
         action='count',
@@ -54,6 +65,7 @@ def main():
     )
 
     arguments = parser.parse_args()
+    logger.debug(f'Arguments: {arguments}')
 
     if arguments.source_file is None:
         logger.error(f'missing <source_file>')
@@ -75,14 +87,23 @@ def main():
             return 0
 
         if arguments.target == 'sbs':
+
             logger.info(f'Transpiling to {arguments.target}')
             transformer = SubstancePackageTranspiler()
             ast_target_root_node = transformer.visit(ast_source_root_node)
-            print(dump(ast_target_root_node))
+            logger.debug(dump(ast_target_root_node))
+
+            if arguments.output:
+                logger.info(f'Codegen to {arguments.output}')
+                with SubstancePackageGenerator(arguments.output) as codegen:
+                    codegen.visit(ast_target_root_node)
 
         return 0
-    except (UnsupportedASTNode):
+    except (SubstanceTransformerUnsupportedASTNode):
         logger.error(f'Unable to transpile to Substance : {traceback.format_exc()}')
+        return -1
+    except (SubstanceCodegenUnsupportedASTNode):
+        logger.error(f'Unable to codegen to Substance : {traceback.format_exc()}')
         return -1
     except (ValueError, SyntaxError):
         logger.error(f'Invalid DSL : {traceback.format_exc()}')

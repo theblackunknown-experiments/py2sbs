@@ -90,7 +90,6 @@ class SymbolTable(symtable.SymbolTable, abc.ABC):
     def update(self, symbol_datas : Mapping[SymbolName, Symbol]):
         self.symbols.update(symbol_datas)
 
-
 class FunctionSymbolTable(SymbolTable):
     def __init__(self, name):
         super().__init__(name, 'function')
@@ -113,11 +112,11 @@ class UnsupportedASTNode(RuntimeError):
 class UnsupportedTranspilerProcessing(RuntimeError):
     pass
 
-class SubstanceTranspiler(ast.NodeTransformer):
-    def generic_visit(self, node : ast.Module):
+class Transpiler(ast.NodeTransformer):
+    def generic_visit(self, node):
         raise UnsupportedASTNode(dump(node))
 
-class FunctionGraphNodesTranspiler(SubstanceTranspiler):
+class FunctionGraphNodesTranspiler(Transpiler):
 
     def __init__(self, name):
         super().__init__()
@@ -169,7 +168,7 @@ class FunctionGraphNodesTranspiler(SubstanceTranspiler):
     def visit_Return(self, node):
         return Output(expression=self.visit(node.value))
 
-class FunctionGraphTranspiler(SubstanceTranspiler):
+class FunctionGraphTranspiler(Transpiler):
 
     def __init__(self):
         self.body_transpiler = None
@@ -222,7 +221,7 @@ class FunctionGraphTranspiler(SubstanceTranspiler):
     def visit_body(self, nodes):
         return list(filter(None, map(self.body_transpiler.visit, nodes)))
 
-class SubstancePackageTranspiler(SubstanceTranspiler):
+class PackageTranspiler(Transpiler):
 
     def visit_Module(self, node : ast.Module):
         node_package_description = next((
