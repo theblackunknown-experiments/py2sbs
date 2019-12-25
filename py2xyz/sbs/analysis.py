@@ -3,7 +3,6 @@ import pprint
 import logging
 import functools
 import itertools
-import collections
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +15,10 @@ from py2xyz.sbs.symtable import FunctionSymbolTable
 class Analyzer(ast.NodeVisitor):
     pass
 
-class OverloadResolvers(Analyzer):
+class ArgumentTypeInference(Analyzer):
 
-    def __init__(self, symbol_table):
-        self.symbol_table = symbol_table
-        self.types_per_parameter = collections.defaultdict(set)
+    def __init__(self, initial_argument_types):
+        self.initial_argument_types = initial_argument_types
 
     def analyze(self, content):
         if isinstance(content, (list, tuple)):
@@ -48,6 +46,8 @@ class OverloadResolvers(Analyzer):
                 logger.debug(f'invalid program with operator {node.operator}({left}, {right}) for ({dump(node.left)}, {dump(node.right)})')
                 continue
 
+            # aggregate result
+
             result = dict(left_argument_types)
             for key, value in right_argument_types.items():
                 if key in result:
@@ -55,7 +55,9 @@ class OverloadResolvers(Analyzer):
                 else:
                     result[key] = right_argument_types[key]
 
-            for key, value in self.symbol_table.items():
+            # fill unresolved/missing parameter entries
+
+            for key, value in self.initial_argument_types.items():
                 if key not in result:
                     result[key] = value
 
@@ -72,12 +74,12 @@ class OverloadResolvers(Analyzer):
             raise NotImplementedError
 
     def validateGet(self, node, returntype):
-        if self.symbol_table[node.symbol] is None:
+        if self.initial_argument_types[node.symbol] is None:
             # logger.debug(f'return type {returntype} - valid program because {dump(node)} is variant')
             return {
                 node.symbol: { returntype }
             }
-        elif returntype in self.symbol_table[node.symbol]:
+        elif returntype in self.initial_argument_types[node.symbol]:
             # logger.debug(f'return type {returntype} - valid program because {dump(node)} is of the same type')
             return {
                 node.symbol: { returntype }
@@ -85,20 +87,11 @@ class OverloadResolvers(Analyzer):
         else:
             return { }
 
-def resolve_overloads(node, parameters, content):
+def iterate_inferred_argument_types(node, parameters, content):
     logger.debug(f'resolving... {dump(node)}')
 
-    symbol_table = {
+    resolver = ArgumentTypeInference({
         parameter.identifier: { parameter.type } if parameter.type else None
         for parameter in parameters
-    }
-    if len(symbol_table) == 0:
-        return []
-
-    resolver = OverloadResolvers(symbol_table)
-
-    logger.debug(f'symbol table        : {symbol_table}')
-    overloads = list(resolver.analyze(content))
-    logger.debug(f'overloads : {pprint.pformat(overloads)}')
-
-    return overloads
+    })
+    return resolver.analyze(content)

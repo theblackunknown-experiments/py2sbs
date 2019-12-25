@@ -83,7 +83,6 @@ class FunctionGraphTranspiler(Transpiler):
             attributes=None,
             parameters=self.visit_arguments(node.args),
             nodes=self.visit_body(node.body),
-            overloads=set(),
         )
 
     def visit_arguments(self, node : ast.arguments):
@@ -100,16 +99,6 @@ class FunctionGraphTranspiler(Transpiler):
             else:
                 return None
 
-        def type_from_default(node):
-            if isinstance(node, ast.Num):
-                return next(
-                    enum_symbol
-                    for enum_symbol in itertools.chain(ANY_TYPES)
-                    if enum_symbol.value == node.n.__class__.__name__
-                )
-            else:
-                return None
-
         parameters = [
             Parameter(identifier=subnode.arg, type=type_from_annotation(subnode.annotation), value=None)
             for subnode in node.args
@@ -117,11 +106,6 @@ class FunctionGraphTranspiler(Transpiler):
 
         for parameter, node_default in zip(parameters[-len(node.defaults):], node.defaults):
             parameter.value = node_default
-            if (node_default is not None) and (parameter.type is None):
-                parameter.type = type_from_default(node_default)
-
-            # TODO make sure node_default is constant expression
-            # TODO deduce type from node_default
 
         return parameters
 

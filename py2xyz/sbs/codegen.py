@@ -11,16 +11,7 @@ from py2xyz import (
     dump,
 )
 
-from py2xyz.sbs.ast import (
-    Package,
-    Parameter,
-    Constant,
-    Output,
-    FunctionGraph,
-    BinaryOperation,
-    NumericalOperator,
-    Reference,
-)
+from py2xyz.sbs.ast import *
 
 from pysbs.context import Context
 from pysbs.sbsenum import (

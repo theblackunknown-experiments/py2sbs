@@ -96,12 +96,12 @@ def main():
             transformer = SubstancePackageTranspiler()
             ast_target_root_node = transformer.visit(ast_source_root_node)
 
-            logger.info(f'Output: {dump(ast_source_root_node)}')
+            logger.info(f'Output: {dump(ast_target_root_node)}')
 
             for idx, CompilationPassClazz in enumerate(DEFAULT_COMPILATION_PASSES, 1):
                 compilation_pass = CompilationPassClazz()
                 ast_target_root_node = compilation_pass.visit(ast_target_root_node)
-                logger.info(f'After compilation pass {idx} - {CompilationPassClazz.__name__} : {dump(ast_target_root_node)}')
+                logger.info(f'Optimization {idx} - {CompilationPassClazz.__name__} : {dump(ast_target_root_node)}')
 
             if arguments.output:
                 logger.info(f'Codegen to {arguments.output}')
