@@ -72,6 +72,7 @@ class ResolveFunctionOverloadSetPass(Pass):
             )
 
 class FlattenOverloadedFunctionsPass(Pass):
+    # Inspired by struct module packing
     FORMAT_CHARACTERS_TABLE = {
         TextTypes.String       :  's',
         LogicalTypes.Boolean   :  'b',
@@ -87,7 +88,6 @@ class FlattenOverloadedFunctionsPass(Pass):
 
     @staticmethod
     def packargtypes(argtypes):
-        # Inspired by struct module packing
         return '-'.join(
             map(
                 FlattenOverloadedFunctionsPass.FORMAT_CHARACTERS_TABLE.get,
@@ -95,7 +95,7 @@ class FlattenOverloadedFunctionsPass(Pass):
             )
         )
 
-    def flatmap(self, node):
+    def flatten_overloads(self, node):
         if not isinstance(node, OverloadedFunctionGraph):
             return ( node, )
 
@@ -115,14 +115,14 @@ class FlattenOverloadedFunctionsPass(Pass):
             )
             for argtypes in node.overloads
         )
+
     def visit_Package(self, node):
         return Package(
             description=node.description,
-            content=[
-                flattened_subnode
-                for subnode in node.content
-                for flattened_subnode in self.flatmap(subnode)
-            ]
+            content=list(
+                # i.e. flatmap
+                itertools.chain.from_iterable(map(self.flatten_overloads, node.content) )
+            )
         )
 
 DEFAULT_COMPILATION_PASSES = [
