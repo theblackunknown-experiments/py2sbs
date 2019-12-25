@@ -70,7 +70,14 @@ class PackageGenerator(Generator):
 class GraphGenerator(Generator):
 
     DEFAULT_WIDGET_FROM_TYPE = {
-        'int': WidgetEnum.SLIDER_INT1,
+        NumericalTypes.Integer1: WidgetEnum.SLIDER_INT1,
+        NumericalTypes.Integer2: WidgetEnum.SLIDER_INT2,
+        NumericalTypes.Integer3: WidgetEnum.SLIDER_INT3,
+        NumericalTypes.Integer4: WidgetEnum.SLIDER_INT4,
+        NumericalTypes.Float1  : WidgetEnum.SLIDER_FLOAT1,
+        NumericalTypes.Float2  : WidgetEnum.SLIDER_FLOAT2,
+        NumericalTypes.Float3  : WidgetEnum.SLIDER_FLOAT3,
+        NumericalTypes.Float4  : WidgetEnum.SLIDER_FLOAT4,
     }
 
     def __init__(self, graph):
