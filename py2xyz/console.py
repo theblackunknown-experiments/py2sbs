@@ -2,6 +2,7 @@
 
 import ast
 import logging
+import logging.config
 import argparse
 import tempfile
 import traceback
@@ -121,12 +122,65 @@ def main():
 
 if __name__ == '__main__':
 
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format='[{name}] {message}',
-        datefmt=None,
-        style='{'
-    )
+    logging.config.dictConfig({
+        'version': 1,
+        'formatters': {
+            'debug': {
+                'format' : '[{filename}:{lineno: >3}] {message}',
+                'datefmt': None,
+                'style'  : '{',
+            },
+            'brief': {
+                'format' : '[{name}] {message}',
+                'datefmt': None,
+                'style'  : '{',
+            },
+        },
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+                'formatter': 'brief',
+                'stream': 'ext://sys.stdout',
+            },
+            'console_debug': {
+                'class': 'logging.StreamHandler',
+                'formatter': 'debug',
+                'stream': 'ext://sys.stdout',
+            },
+            'file': {
+                'class': 'logging.handlers.RotatingFileHandler',
+                'formatter': 'debug',
+                'filename': Path('scanbox.log'),
+                'maxBytes': 1024*1024*1024*1024,
+                'backupCount': 5,
+                'encoding': 'utf-8',
+            },
+            'null': {
+                'class': 'logging.NullHandler',
+            }
+        },
+        'loggers': {
+            '__main__': {
+                'level': 'INFO',
+                'handlers': [
+                    'console',
+                ],
+            },
+            'py2xyz': {
+                'level': 'DEBUG',
+                'handlers': [
+                    'console_debug',
+                ],
+            },
+            'py2xyz.sbs.analysis': {
+                'level': 'DEBUG',
+                'handlers': [
+                    'null',
+                ],
+                'propagate': False
+            },
+        },
+    })
 
     import sys
     sys.exit(main())

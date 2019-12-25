@@ -43,7 +43,7 @@ class ArgumentTypeInference(Analyzer):
             right_argument_types = self.validate(node.right, right)
 
             if (len(left_argument_types)) == 0 or (len(right_argument_types) == 0):
-                # logger.debug(f'invalid program with operator {node.operator}({left}, {right}) for ({dump(node.left)}, {dump(node.right)})')
+                logger.debug(f'invalid program with operator {node.operator}({left}, {right}) for ({dump(node.left)}, {dump(node.right)})')
                 continue
 
             # aggregate result
@@ -75,12 +75,12 @@ class ArgumentTypeInference(Analyzer):
 
     def validateGet(self, node, returntype):
         if self.initial_argument_types[node.symbol] is None:
-            # logger.debug(f'return type {returntype} - valid program because {dump(node)} is variant')
+            logger.debug(f'return type {returntype} - valid program because {dump(node)} is variant')
             return {
                 node.symbol: { returntype }
             }
         elif returntype in self.initial_argument_types[node.symbol]:
-            # logger.debug(f'return type {returntype} - valid program because {dump(node)} is of the same type')
+            logger.debug(f'return type {returntype} - valid program because {dump(node)} is of the same type')
             return {
                 node.symbol: { returntype }
             }
