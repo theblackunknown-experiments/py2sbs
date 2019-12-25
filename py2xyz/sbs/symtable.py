@@ -15,25 +15,6 @@ from typing import (
 
 logger = logging.getLogger(__name__)
 
-from py2xyz import (
-    dump,
-)
-
-from py2xyz.sbs.ast import (
-    Package,
-    Parameter,
-    Constant,
-    Output,
-    FunctionGraph,
-    BinaryOperation,
-    NumericalOperator,
-    Reference,
-)
-
-SymbolName  = NewType('SymbolName', str)
-SymbolScope = NewType('SymbolScope', int)
-Symbol = ast.AST
-
 # inheriting from symtable.SymbolTable is artifical as we are re-implementating most functions, but at least the intent is clear that we implement a symboltable
 class SymbolTable(symtable.SymbolTable, abc.ABC):
     def __init__(self, name, type):
@@ -88,7 +69,7 @@ class SymbolTable(symtable.SymbolTable, abc.ABC):
         """Return a list of the nested symbol tables."""
         return self.children
 
-    def update(self, symbol_datas : Mapping[SymbolName, Symbol]):
+    def update(self, symbol_datas):
         self.symbols.update(symbol_datas)
 
     def __str__(self):

@@ -8,6 +8,8 @@ logger = logging.getLogger(__name__)
 
 from py2xyz import dump
 
+from py2xyz.sbs import TranspilerError
+
 from py2xyz.sbs.ast import *
 
 from py2xyz.sbs.analysis import iterate_inferred_argument_types
@@ -45,7 +47,7 @@ class ResolveFunctionOverloadSetPass(Pass):
             return node
 
         overloads=list(iterate_inferred_argument_types(node, node.parameters, node.nodes))
-        logger.debug(f'overloads : {pprint.pformat(overloads)}')
+        # logger.debug(f'overloads : {pprint.pformat(overloads)}')
         if len(overloads) == 0:
             return node
         elif len(overloads) == 1:
@@ -70,6 +72,26 @@ class ResolveFunctionOverloadSetPass(Pass):
                 nodes=node.nodes,
                 overloads=overloads,
             )
+
+class FoldPow2ExpressionPass(Pass):
+    def visit_BinaryOperation(self, node):
+        logger.debug(f'FoldPow2ExpressionPass - {dump(node)}')
+        if node.operator.opcode is NonNativeNumericalOperator.Pow:
+            # TODO fold constant pass before hand
+            left = self.visit(node.left)
+
+            if not isinstance(left, Constant):
+                raise TranspilerError(f'Cannot fold pow in pow2 : left operand is not Constant - {dump(left)}')
+
+            if left.value != 2:
+                raise TranspilerError(f'Cannot fold pow in pow2 : left operand is not equals to 2 - {dump(left)}')
+
+            return UnaryOperation(
+                operator=Operator(opcode=NativeUnaryOperator.Pow2),
+                operand=node.right,
+            )
+        else:
+            return node
 
 class FlattenOverloadedFunctionsPass(Pass):
     # Inspired by struct module packing
@@ -121,12 +143,13 @@ class FlattenOverloadedFunctionsPass(Pass):
             description=node.description,
             content=list(
                 # i.e. flatmap
-                itertools.chain.from_iterable(map(self.flatten_overloads, node.content) )
+                itertools.chain.from_iterable(map(self.flatten_overloads, node.content))
             )
         )
 
 DEFAULT_COMPILATION_PASSES = [
     ResolveParameterFromDefaultValue,
+    FoldPow2ExpressionPass,
     ResolveFunctionOverloadSetPass,
     FlattenOverloadedFunctionsPass,
 ]

@@ -23,34 +23,91 @@ class NumericalTypes(enum.Enum):
     Float3   = 'float3'
     Float4   = 'float4'
 
-ANY_NUMERICAL_TYPES = set(NumericalTypes)
+ANY_INTEGRAL_TYPES = {
+    NumericalTypes.Integer1,
+    NumericalTypes.Integer2,
+    NumericalTypes.Integer3,
+    NumericalTypes.Integer4,
+}
+
+ANY_FLOAT_TYPES = {
+    NumericalTypes.Float1,
+    NumericalTypes.Float2,
+    NumericalTypes.Float3,
+    NumericalTypes.Float4,
+}
+
+ANY_NUMERICAL_TYPES = ANY_INTEGRAL_TYPES | ANY_FLOAT_TYPES
 
 ANY_TYPES = ANY_TEXT_TYPES | ANY_LOGICAL_TYPES | ANY_NUMERICAL_TYPES
 
-class NumericalOperator(enum.Enum):
-    Add  = enum.auto()
-    Sub  = enum.auto()
-    Mult = enum.auto()
-    Div  = enum.auto()
-    Mod  = enum.auto()
+class NonNativeNumericalOperator(enum.Enum):
     Pow  = enum.auto()
 
     def overloads(self):
-        if self in {NumericalOperator.Add, NumericalOperator.Mod, NumericalOperator.Pow}:
+        if self in {NonNativeNumericalOperator.Pow}:
             return (
                 (_, _ )
-                for _ in NumericalTypes
+                for _ in ANY_NUMERICAL_TYPES
             )
         else:
             raise NotImplementedError(f'Overloads not implemented for {self}')
 
-class BooleanOperator(enum.Enum):
-    And  = enum.auto()
-    Or   = enum.auto()
+class NativeBinaryOperator(enum.Enum):
+    Add        = enum.auto()
+    Sub        = enum.auto()
+    Mult       = enum.auto()
+    MultScalar = enum.auto()
+    Div        = enum.auto()
+    Mod        = enum.auto()
+    Dot        = enum.auto()
+    Cross      = enum.auto()
+    And        = enum.auto()
+    Or         = enum.auto()
+    Equals     = enum.auto()
+    NotEquals  = enum.auto()
 
-class UnaryOperator(enum.Enum):
-    Not = enum.auto()
-    Sub = enum.auto()
+    def overloads(self):
+        symbols = NativeBinaryOperator
+        if self in {symbols.Add, symbols.Mod, symbols.Mult, symbols.Div}:
+            return (
+                (_, _)
+                for _ in ANY_NUMERICAL_TYPES
+            )
+        elif self in {symbols.Equals, symbols.NotEquals}:
+            return (
+                (_, _)
+                for _ in {NumericalTypes.Float1, NumericalTypes.Integer1}
+            )
+        elif self in {symbols.MultScalar}:
+            return (
+                (_, NumericalTypes.Float1)
+                for _ in {NumericalTypes.Float2, NumericalTypes.Float3, NumericalTypes.Float4}
+            )
+        elif self in {symbols.Dot, symbols.Cross}:
+            return (
+                (_, _)
+                for _ in {NumericalTypes.Float2, NumericalTypes.Float3, NumericalTypes.Float4}
+            )
+        elif self in {symbols.And, symbols.Or}:
+            return (
+                (LogicalTypes.Boolean, LogicalTypes.Boolean)
+            )
+        else:
+            raise NotImplementedError(f'Overloads not implemented for {self}')
+
+class NativeUnaryOperator(enum.Enum):
+    Not  = enum.auto()
+    Sub  = enum.auto()
+    Pow2 = enum.auto()
+
+    def overloads(self):
+        if self in {NativeUnaryOperator.Pow2}:
+            return ANY_FLOAT_TYPES
+        elif self in {NativeUnaryOperator.Not}:
+            return ANY_LOGICAL_TYPES
+        else:
+            raise NotImplementedError(f'Overloads not implemented for {self}')
 
 class AST(ast.AST, abc.ABC):
     pass
@@ -100,22 +157,27 @@ class Output(Statement):
 class Expression(AST, abc.ABC):
     pass
 
-# experimental
-class Reference(Expression):
-    _fields = (
-        'to',
-    )
-
 class Get(Expression):
     _fields = (
         'symbol',
     )
 
+class Operator(AST):
+    _fields = (
+        'opcode',
+    )
+
 class BinaryOperation(Expression):
     _fields = (
         'left',
-        'operator',
         'right',
+        'operator',
+    )
+
+class UnaryOperation(Expression):
+    _fields = (
+        'operator',
+        'operand',
     )
 
 class Constant(Expression):

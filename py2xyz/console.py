@@ -18,15 +18,15 @@ from py2xyz import (
     dump,
 )
 
+from py2xyz.sbs import TranspilerError as SubstanceTranspilerError
+
 from py2xyz.sbs.transformer import (
-    UnsupportedASTNode as SubstanceTransformerUnsupportedASTNode,
     PackageTranspiler as SubstancePackageTranspiler,
 )
 
 from py2xyz.sbs.passes import DEFAULT_COMPILATION_PASSES
 
 from py2xyz.sbs.codegen import (
-    UnsupportedASTNode as SubstanceCodegenUnsupportedASTNode,
     PackageGenerator as SubstancePackageGenerator,
 )
 
@@ -110,11 +110,8 @@ def main():
                     codegen.visit(ast_target_root_node)
 
         return 0
-    except (SubstanceTransformerUnsupportedASTNode):
+    except (SubstanceTranspilerError):
         logger.error(f'Unable to transpile to Substance : {traceback.format_exc()}')
-        return -1
-    except (SubstanceCodegenUnsupportedASTNode):
-        logger.error(f'Unable to codegen to Substance : {traceback.format_exc()}')
         return -1
     except (ValueError, SyntaxError):
         logger.error(f'Invalid DSL : {traceback.format_exc()}')

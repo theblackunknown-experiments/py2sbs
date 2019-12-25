@@ -10,8 +10,6 @@ from py2xyz import dump
 
 from py2xyz.sbs.ast import *
 
-from py2xyz.sbs.symtable import FunctionSymbolTable
-
 class Analyzer(ast.NodeVisitor):
     pass
 
@@ -38,12 +36,12 @@ class ArgumentTypeInference(Analyzer):
         yield from self.analyze(node.expression)
 
     def analyze_BinaryOperation(self, node):
-        for left, right in node.operator.overloads():
+        for left, right in node.operator.opcode.overloads():
             left_argument_types = self.validate(node.left, left)
             right_argument_types = self.validate(node.right, right)
 
-            if (len(left_argument_types)) == 0 or (len(right_argument_types) == 0):
-                logger.debug(f'invalid program with operator {node.operator}({left}, {right}) for ({dump(node.left)}, {dump(node.right)})')
+            if (len(left_argument_types) == 0) or (len(right_argument_types) == 0):
+                logger.debug(f'invalid program with operator {node.operator.opcode}({left}, {right}) for ({dump(node.left)}, {dump(node.right)})')
                 continue
 
             # aggregate result
@@ -55,6 +53,25 @@ class ArgumentTypeInference(Analyzer):
                 else:
                     result[key] = right_argument_types[key]
 
+            # fill unresolved/missing parameter entries
+
+            for key, value in self.initial_argument_types.items():
+                if key not in result:
+                    result[key] = value
+
+            yield from itertools.product(*result.values())
+
+    def analyze_UnaryOperation(self, node):
+        for operand_type in node.operator.opcode.overloads():
+            argument_types = self.validate(node.operand, operand_type)
+
+            if len(argument_types) == 0:
+                logger.debug(f'invalid program with operator {node.operator.opcode}({operand_type}) for ({dump(node.operand)})')
+                continue
+
+            # aggregate result
+
+            result = dict(argument_types)
             # fill unresolved/missing parameter entries
 
             for key, value in self.initial_argument_types.items():

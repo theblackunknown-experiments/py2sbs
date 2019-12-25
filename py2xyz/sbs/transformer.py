@@ -9,17 +9,13 @@ from py2xyz import (
     dump,
 )
 
+from py2xyz.sbs import TranspilerError
+
 from py2xyz.sbs.ast import *
-
-class UnsupportedASTNode(RuntimeError):
-    pass
-
-class UnsupportedTranspilerProcessing(RuntimeError):
-    pass
 
 class Transpiler(ast.NodeTransformer):
     def generic_visit(self, node):
-        raise UnsupportedASTNode(dump(node))
+        raise TranspilerError(dump(node))
 
 class FunctionGraphNodesTranspiler(Transpiler):
 
@@ -29,24 +25,24 @@ class FunctionGraphNodesTranspiler(Transpiler):
             # return Reference(to=self.symbol_table.lookup(node.id))
             return Get(symbol=node.id)
         else:
-            raise UnsupportedTranspilerProcessing(f'Unexpected node encounter during visit {dump(node)}')
+            raise TranspilerError(f'Unexpected node encounter during visit {dump(node)}')
 
     def visit_Num(self, node):
         return Constant(value=node.n)
 
     def visit_Add(self, node):
-        return NumericalOperator.Add
+        return Operator(opcode=NativeBinaryOperator.Add)
 
     def visit_Mod(self, node):
-        return NumericalOperator.Mod
+        return Operator(opcode=NativeBinaryOperator.Mod)
 
     def visit_Pow(self, node):
-        return NumericalOperator.Pow
+        return Operator(opcode=NonNativeNumericalOperator.Pow)
 
     def visit_Tuple(self, node):
         count = len(node.elts)
         if count not in {1, 2, 3, 4}:
-            raise UnsupportedASTNode(f'Tuple count unusupported : {dump(node)}')
+            raise TranspilerError(f'Tuple count unusupported : {dump(node)}')
 
         subnodes = list(map(self.visit, node.elts))
 
@@ -58,7 +54,7 @@ class FunctionGraphNodesTranspiler(Transpiler):
             return Constant(value=[_.value for _ in subnodes])
         else:
             # TODO if not constants, we need to transpile to Vector XYZW or Cast operator
-            raise UnsupportedASTNode(f'Tuple elements unusupported : {dump(node)}')
+            raise TranspilerError(f'Tuple elements unusupported : {dump(node)}')
 
     def visit_BinOp(self, node):
         return BinaryOperation(
@@ -87,7 +83,7 @@ class FunctionGraphTranspiler(Transpiler):
 
     def visit_arguments(self, node : ast.arguments):
         if node.vararg is not None:
-            raise UnsupportedASTNode(f'arguments.varag : {dump(node.vararg)}')
+            raise TranspilerError(f'arguments.varag : {dump(node.vararg)}')
 
         def type_from_annotation(annotation):
             if isinstance(annotation, ast.Name):
