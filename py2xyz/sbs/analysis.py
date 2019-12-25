@@ -43,7 +43,7 @@ class ArgumentTypeInference(Analyzer):
             right_argument_types = self.validate(node.right, right)
 
             if (len(left_argument_types)) == 0 or (len(right_argument_types) == 0):
-                logger.debug(f'invalid program with operator {node.operator}({left}, {right}) for ({dump(node.left)}, {dump(node.right)})')
+                # logger.debug(f'invalid program with operator {node.operator}({left}, {right}) for ({dump(node.left)}, {dump(node.right)})')
                 continue
 
             # aggregate result
@@ -88,7 +88,7 @@ class ArgumentTypeInference(Analyzer):
             return { }
 
 def iterate_inferred_argument_types(node, parameters, content):
-    logger.debug(f'resolving... {dump(node)}')
+    # logger.debug(f'resolving... {dump(node)}')
 
     resolver = ArgumentTypeInference({
         parameter.identifier: { parameter.type } if parameter.type else None
