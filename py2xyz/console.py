@@ -22,6 +22,8 @@ from py2xyz.sbs.transformer import (
     PackageTranspiler as SubstancePackageTranspiler,
 )
 
+from py2xyz.sbs.passes import DEFAULT_COMPILATION_PASSES
+
 from py2xyz.sbs.codegen import (
     UnsupportedASTNode as SubstanceCodegenUnsupportedASTNode,
     PackageGenerator as SubstancePackageGenerator,
@@ -83,15 +85,23 @@ def main():
         )
 
         if arguments.pretty_print:
-            logger.info(dump(ast_source_root_node))
+            print(dump(ast_source_root_node))
             return 0
 
         if arguments.target == 'sbs':
 
-            logger.info(f'Transpiling to {arguments.target}')
+            logger.info(f'Transpilationg from Python to Substance')
+            logger.info(f'Input: {dump(ast_source_root_node)}')
+
             transformer = SubstancePackageTranspiler()
             ast_target_root_node = transformer.visit(ast_source_root_node)
-            logger.debug(dump(ast_target_root_node))
+
+            logger.info(f'Output: {dump(ast_source_root_node)}')
+
+            for idx, CompilationPassClazz in enumerate(DEFAULT_COMPILATION_PASSES, 1):
+                compilation_pass = CompilationPassClazz()
+                ast_target_root_node = compilation_pass.visit(ast_target_root_node)
+                logger.info(f'After compilation pass {idx} - {CompilationPassClazz.__name__} : {dump(ast_target_root_node)}')
 
             if arguments.output:
                 logger.info(f'Codegen to {arguments.output}')
