@@ -18,13 +18,15 @@ from py2xyz import (
     dump,
 )
 
+from py2xyz.py import TranspilerError as PythonTranspilerError
 from py2xyz.sbs import TranspilerError as SubstanceTranspilerError
 
 from py2xyz.sbs.transformer import (
     PackageTranspiler as SubstancePackageTranspiler,
 )
 
-from py2xyz.sbs.passes import DEFAULT_COMPILATION_PASSES
+from py2xyz.py.passes import DEFAULTS as DEFAULT_PY_PASSES
+from py2xyz.sbs.passes import DEFAULTS as DEFAULT_SBS_PASSES
 
 from py2xyz.sbs.codegen import (
     PackageGenerator as SubstancePackageGenerator,
@@ -55,16 +57,10 @@ def main():
     )
 
     parser.add_argument(
-        '-v', '--verbose',
-        help='Make runtime more verbose, more "v", more fun',
-        action='count',
-        default=0,
-    )
-
-    parser.add_argument(
-        '--pretty-print',
-        help='Print source AST instead of transpiling',
-        action='store_true',
+        '-p', '--pass',
+        dest='passes',
+        help='Which Substance pass to run, run all default passes if none provided',
+        action='append',
     )
 
     arguments = parser.parse_args()
@@ -74,44 +70,50 @@ def main():
         logger.error(f'missing <source_file>')
         return 1
 
-    if arguments.verbose >= 2:
-        logger.setLevel( logging.DEBUG )
-    elif arguments.verbose >= 1:
-        logger.setLevel( logging.INFO )
+    if arguments.passes:
+        def __filter_pass(pass_clazz):
+            return pass_clazz.__name__ in arguments.passes
+    else:
+        __filter_pass = None
 
     try:
-        ast_source_root_node = ast.parse(
+        ast_source = ast.parse(
             source=arguments.source_file.read(),
             filename=getattr(arguments.source_file, 'name', '<string>'),
         )
+        logger.debug(f'source\n{dump(ast_source)}')
 
-        if arguments.pretty_print:
-            print(dump(ast_source_root_node))
-            return 0
+        for idx, CompilationPassClazz in enumerate(filter(__filter_pass, DEFAULT_PY_PASSES), 1):
+            compilation_pass = CompilationPassClazz()
+            ast_source = compilation_pass.visit(ast_source)
+            logger.info(f'optimization {idx} - {CompilationPassClazz.__name__}\n{dump(ast_source)}')
 
         if arguments.target == 'sbs':
+            logger.info(f'py -> sbs')
 
-            logger.info(f'Transpilationg from Python to Substance')
-            logger.info(f'Input: {dump(ast_source_root_node)}')
+            try:
+                transformer = SubstancePackageTranspiler()
+                ast_target = transformer.visit(ast_source)
 
-            transformer = SubstancePackageTranspiler()
-            ast_target_root_node = transformer.visit(ast_source_root_node)
+                logger.info(f'raw\n{dump(ast_target)}')
 
-            logger.info(f'Output: {dump(ast_target_root_node)}')
+                for idx, CompilationPassClazz in enumerate(filter(__filter_pass, DEFAULT_SBS_PASSES), 1):
+                    compilation_pass = CompilationPassClazz()
+                    ast_target = compilation_pass.visit(ast_target)
+                    logger.info(f'optimization {idx} - {CompilationPassClazz.__name__}\n{dump(ast_target)}')
 
-            for idx, CompilationPassClazz in enumerate(DEFAULT_COMPILATION_PASSES, 1):
-                compilation_pass = CompilationPassClazz()
-                ast_target_root_node = compilation_pass.visit(ast_target_root_node)
-                logger.info(f'Optimization {idx} - {CompilationPassClazz.__name__} : {dump(ast_target_root_node)}')
+                if arguments.output:
+                    logger.info(f'codegen -> {arguments.output}')
+                    with SubstancePackageGenerator(arguments.output) as codegen:
+                        codegen.visit(ast_target)
 
-            if arguments.output:
-                logger.info(f'Codegen to {arguments.output}')
-                with SubstancePackageGenerator(arguments.output) as codegen:
-                    codegen.visit(ast_target_root_node)
+            except (SubstanceTranspilerError):
+                logger.error(f'Transpilation Failure : {traceback.format_exc()}')
+                return -1
 
         return 0
-    except (SubstanceTranspilerError):
-        logger.error(f'Unable to transpile to Substance : {traceback.format_exc()}')
+    except (PythonTranspilerError):
+        logger.error(f'Transpilation Failure : {traceback.format_exc()}')
         return -1
     except (ValueError, SyntaxError):
         logger.error(f'Invalid DSL : {traceback.format_exc()}')
@@ -158,7 +160,7 @@ if __name__ == '__main__':
         },
         'loggers': {
             '__main__': {
-                'level': 'INFO',
+                'level': 'DEBUG',
                 'handlers': [
                     'console',
                 ],

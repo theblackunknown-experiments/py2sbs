@@ -147,7 +147,7 @@ class FlattenOverloadedFunctionsPass(Pass):
             )
         )
 
-DEFAULT_COMPILATION_PASSES = [
+DEFAULTS = [
     ResolveParameterFromDefaultValue,
     FoldPow2ExpressionPass,
     ResolveFunctionOverloadSetPass,
