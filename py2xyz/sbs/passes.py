@@ -229,7 +229,10 @@ class ShaderToyIntrinsicPass(Pass):
         else:
             return node
 
-DEFAULTS = [
+DEFAULT_PRE_PASSES = [
+]
+
+DEFAULT_POST_PASSES = [
     # ShaderToyIntrinsicPass,
     ResolveParameterTypeFromDefaultValue,
     FoldPow2ExpressionPass,

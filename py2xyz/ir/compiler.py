@@ -4,7 +4,7 @@ import itertools
 
 from py2xyz import TranspilerError
 
-from py2xyz.ir import (
+from py2xyz.ir.ast import (
     Assign          as IRAssign,
     Attribute       as IRAttribute,
     BinaryOperation as IRBinaryOperation,

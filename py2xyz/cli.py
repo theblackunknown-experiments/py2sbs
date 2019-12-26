@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import re
 import ast
 import logging
 import logging.config
@@ -20,15 +21,26 @@ from py2xyz import (
 
 from py2xyz import TranspilerError
 
-from py2xyz.compiler import ModuleTranspiler as IRModuleTranspiler
+from py2xyz.ir.compiler import ModuleTranspiler as IRModuleTranspiler
+
+from py2xyz.ir.passes import (
+    DEFAULT_PRE_PASSES as DEFAULT_IR_PRE_PASSES,
+    DEFAULT_POST_PASSES as DEFAULT_IR_POST_PASSES,
+)
+
+from py2xyz.py.passes import (
+    DEFAULT_PRE_PASSES as DEFAULT_PY_PRE_PASSES,
+    DEFAULT_POST_PASSES as DEFAULT_PY_POST_PASSES,
+)
+
+from py2xyz.sbs.passes import (
+    DEFAULT_PRE_PASSES as DEFAULT_SBS_PRE_PASSES,
+    DEFAULT_POST_PASSES as DEFAULT_SBS_POST_PASSES,
+)
 
 from py2xyz.sbs.compiler import (
     PackageTranspiler as SubstancePackageTranspiler,
 )
-
-from py2xyz.passes import DEFAULTS as DEFAULT_IR_PASSES
-from py2xyz.py.passes import DEFAULTS as DEFAULT_PY_PASSES
-from py2xyz.sbs.passes import DEFAULTS as DEFAULT_SBS_PASSES
 
 from py2xyz.sbs.codegen import (
     PackageGenerator as SubstancePackageGenerator,
@@ -74,62 +86,88 @@ def main():
 
     if arguments.passes:
         def __filter_pass(pass_clazz):
-            return pass_clazz.__name__ in arguments.passes
+            return any(
+                re.search(_, f'{pass_clazz.__module__}.{pass_clazz.__name__}')
+                for _ in arguments.passes
+            )
     else:
         __filter_pass = None
 
+    # Source Language
     try:
         ast_source = ast.parse(
             source=arguments.source_file.read(),
             filename=getattr(arguments.source_file, 'name', '<string>'),
         )
         logger.debug(f'source\n{dump(ast_source)}')
+    except (ValueError, SyntaxError):
+        logger.error(f'Invalid DSL : {traceback.format_exc()}')
+        return -1
 
-        for idx, CompilationPassClazz in enumerate(filter(__filter_pass, DEFAULT_PY_PASSES), 1):
+    try:
+        for idx, CompilationPassClazz in enumerate(filter(__filter_pass, DEFAULT_PY_POST_PASSES), 1):
             compilation_pass = CompilationPassClazz()
+            logger.info(f'post-pass {idx} - {CompilationPassClazz.__name__}')
             ast_source = compilation_pass.visit(ast_source)
-            logger.info(f'optimization {idx} - {CompilationPassClazz.__name__}\n{dump(ast_source)}')
+            logger.info(dump(ast_source))
+    except (TranspilerError):
+        logger.error(f'Transpilation Failure : {traceback.format_exc()}')
+        return -1
+
+    # IR Language
+    try:
+        for idx, CompilationPassClazz in enumerate(filter(__filter_pass, DEFAULT_IR_PRE_PASSES), 1):
+            compilation_pass = CompilationPassClazz()
+            logger.info(f'pre-pass {idx} - {CompilationPassClazz.__name__}')
+            ast_source = compilation_pass.visit(ast_source)
+            logger.info(dump(ast_source))
 
         transformer = IRModuleTranspiler()
         ast_ir = transformer.visit(ast_source)
 
         logger.info(f'IR\n{dump(ast_ir)}')
 
-        for idx, CompilationPassClazz in enumerate(filter(__filter_pass, DEFAULT_IR_PASSES), 1):
+        for idx, CompilationPassClazz in enumerate(filter(__filter_pass, DEFAULT_IR_POST_PASSES), 1):
             compilation_pass = CompilationPassClazz()
+            logger.info(f'post-pass {idx} - {CompilationPassClazz.__name__}')
             ast_ir = compilation_pass.visit(ast_ir)
-            logger.info(f'optimization {idx} - {CompilationPassClazz.__name__}\n{dump(ast_ir)}')
-
-        if arguments.target == 'sbs':
-            logger.info(f'py -> sbs')
-
-            try:
-                transformer = SubstancePackageTranspiler()
-                ast_sbs = transformer.visit(ast_ir)
-
-                logger.info(f'SBS IR\n{dump(ast_sbs)}')
-
-                for idx, CompilationPassClazz in enumerate(filter(__filter_pass, DEFAULT_SBS_PASSES), 1):
-                    compilation_pass = CompilationPassClazz()
-                    ast_sbs = compilation_pass.visit(ast_sbs)
-                    logger.info(f'optimization {idx} - {CompilationPassClazz.__name__}\n{dump(ast_sbs)}')
-
-                if arguments.output:
-                    logger.info(f'codegen -> {arguments.output}')
-                    with SubstancePackageGenerator(arguments.output) as codegen:
-                        codegen.visit(ast_sbs)
-
-            except (TranspilerError):
-                logger.error(f'Transpilation Failure : {traceback.format_exc()}')
-                return -1
-
-        return 0
+            logger.info(dump(ast_ir))
     except (TranspilerError):
         logger.error(f'Transpilation Failure : {traceback.format_exc()}')
         return -1
-    except (ValueError, SyntaxError):
-        logger.error(f'Invalid DSL : {traceback.format_exc()}')
-        return -1
+
+    # Target Language
+    if arguments.target == 'sbs':
+        logger.info(f'py -> sbs')
+
+        try:
+            for idx, CompilationPassClazz in enumerate(filter(__filter_pass, DEFAULT_SBS_PRE_PASSES), 1):
+                compilation_pass = CompilationPassClazz()
+                logger.info(f'pre-pass {idx} - {CompilationPassClazz.__name__}')
+                ast_sbs = compilation_pass.visit(ast_sbs)
+                logger.info(dump(ast_sbs))
+
+            transformer = SubstancePackageTranspiler()
+            ast_sbs = transformer.visit(ast_ir)
+
+            logger.info(f'SBS IR\n{dump(ast_sbs)}')
+
+            for idx, CompilationPassClazz in enumerate(filter(__filter_pass, DEFAULT_SBS_POST_PASSES), 1):
+                compilation_pass = CompilationPassClazz()
+                logger.info(f'post-pass {idx} - {CompilationPassClazz.__name__}')
+                ast_sbs = compilation_pass.visit(ast_sbs)
+                logger.info(dump(ast_sbs))
+
+        except (TranspilerError):
+            logger.error(f'Transpilation Failure : {traceback.format_exc()}')
+            return -1
+
+    # Codegen Language
+    if arguments.output and arguments.target:
+        logger.info(f'codegen -> {arguments.output}')
+        if arguments.target == 'sbs':
+            with SubstancePackageGenerator(arguments.output) as codegen:
+                codegen.visit(ast_sbs)
 
 if __name__ == '__main__':
 

@@ -9,5 +9,8 @@ from py2xyz import TranspilerError
 class Pass(ast.NodeTransformer):
     pass
 
-DEFAULTS = [
+DEFAULT_PRE_PASSES = [
+]
+
+DEFAULT_POST_PASSES = [
 ]
