@@ -161,12 +161,12 @@ class GraphGenerator(Generator):
         return operator_node
 
     def visit_Get(self, node):
-        parameter = self.symbol_table.lookup(node.symbol)
+        parameter = self.symbol_table.lookup(node.identifier)
         sbsfunction = self.TYPE_TO_FUNCTION[parameter.type]
         sbsnode = self.graph.createFunctionNode(
             aFunction=sbsfunction,
             aParameters={
-                sbsfunction: node.symbol
+                sbsfunction: node.identifier
             }
         )
         self.logger.debug(f'{node} - generated get node {sbsnode}')

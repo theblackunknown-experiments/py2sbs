@@ -37,7 +37,7 @@
 
 ## https://www.shadertoy.com/results?query=tag%3Dsimple
 
-1. [ ] https://www.shadertoy.com/view/XssSRX : math, shadertoy : inputs
+1. [ ] Sunset - https://www.shadertoy.com/view/XssSRX : math, shadertoy : inputs
 1. [ ] https://www.shadertoy.com/view/llBBDG : math, shadertoy : inputs
 1. [ ] https://www.shadertoy.com/view/ldX3zr : math, shadertoy : inputs
 1. [ ] https://www.shadertoy.com/view/MdX3Dr : math, shadertoy : inputs, image input
@@ -54,7 +54,7 @@
 1. [ ] https://www.shadertoy.com/view/ldS3Wm : math, shadertoy : inputs, loop unrolling
 1. [ ] https://www.shadertoy.com/view/4dl3zr : math, shadertoy : inputs, loop unrolling
 1. [ ] https://www.shadertoy.com/view/4dcXDS : math, shadertoy : inputs, glsl : structs
-1. [ ] https://www.shadertoy.com/view/lss3DS : math, shadertoy : inputs, glsl : structs, glsl : matrices, loop unrolling
+1. [ ] Sunsets - https://www.shadertoy.com/view/lss3DS : math, shadertoy : inputs, glsl : structs, glsl : matrices, loop unrolling
 1. [ ] https://www.shadertoy.com/view/XtBXDw : math, shadertoy : inputs, glsl : structs, glsl : matrices, loop unrolling
 
 ## iq 2D noises https://www.shadertoy.com/results?query=tag%3Dnoise

@@ -4,27 +4,33 @@ import abc
 import enum
 
 class TextTypes(enum.Enum):
-    String = 'str'
+    String = 's'
 
 ANY_TEXT_TYPES = set(TextTypes)
 
 class LogicalTypes(enum.Enum):
-    Boolean = 'bool'
+    Boolean = 'b1'
 
 ANY_LOGICAL_TYPES = set(LogicalTypes)
 
 class NumericalTypes(enum.Enum):
-    Integer1 = 'int'
-    Integer2 = 'int2'
-    Integer3 = 'int3'
-    Integer4 = 'int4'
-    Float1   = 'float'
-    Float2   = 'float2'
-    Float3   = 'float3'
-    Float4   = 'float4'
+    Integer1 = 'i1'
+    Integer2 = 'i2'
+    Integer3 = 'i3'
+    Integer4 = 'i4'
+    Float1   = 'f1'
+    Float2   = 'f2'
+    Float3   = 'f3'
+    Float4   = 'f4'
 
 ANY_INTEGRAL_TYPES = {
     NumericalTypes.Integer1,
+    NumericalTypes.Integer2,
+    NumericalTypes.Integer3,
+    NumericalTypes.Integer4,
+}
+
+ANY_VECTOR_INTEGRAL_TYPES = {
     NumericalTypes.Integer2,
     NumericalTypes.Integer3,
     NumericalTypes.Integer4,
@@ -37,7 +43,15 @@ ANY_FLOAT_TYPES = {
     NumericalTypes.Float4,
 }
 
+ANY_VECTOR_FLOAT_TYPES = {
+    NumericalTypes.Float2,
+    NumericalTypes.Float3,
+    NumericalTypes.Float4,
+}
+
 ANY_NUMERICAL_TYPES = ANY_INTEGRAL_TYPES | ANY_FLOAT_TYPES
+
+ANY_VECTOR_TYPES = ANY_VECTOR_INTEGRAL_TYPES | ANY_VECTOR_FLOAT_TYPES
 
 ANY_TYPES = ANY_TEXT_TYPES | ANY_LOGICAL_TYPES | ANY_NUMERICAL_TYPES
 
@@ -132,7 +146,6 @@ class FunctionGraph(Graph):
 class OverloadedFunctionGraph(FunctionGraph):
     _fields = (
         'identifier',
-        'attributes',
         'parameters',
         'nodes',
         'overloads',
@@ -145,7 +158,7 @@ class Parameter(AST, abc.ABC):
         'value',
     )
 
-class Statement(AST,abc.ABC):
+class Statement(AST, abc.ABC):
     pass
 
 class Output(Statement):
@@ -153,13 +166,25 @@ class Output(Statement):
         'expression',
     )
 
+class Set(Statement):
+    _fields = (
+        'identifier',
+        'expression',
+    )
 
 class Expression(AST, abc.ABC):
     pass
 
 class Get(Expression):
     _fields = (
-        'symbol',
+        'identifier',
+    )
+
+class Call(Expression):
+    _fields = (
+        'url',
+        'operands',
+        'package',
     )
 
 class Operator(AST):

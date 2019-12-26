@@ -38,8 +38,22 @@ def dump(node, annotate_fields=True, include_attributes=False, indent='  '):
             else:
                 lines[-1] += ']'
             return '\n'.join(lines)
-        return repr(node)
+        else:
+            return repr(node)
 
     if not isinstance(node, ast.AST):
         raise TypeError('expected AST, got %r' % node.__class__.__name__)
     return _format(node)
+
+class TranspilerError(RuntimeError):
+    def __init__(self, msg=None, node=None):
+        if msg and node:
+            super().__init__(f'{msg}\n{dump(node, include_attributes=True)}')
+        elif msg and not node:
+            super().__init__(msg)
+        elif not msg and node:
+            super().__init__(dump(node, include_attributes=True))
+        else:
+            super().__init__()
+
+        self.node = node

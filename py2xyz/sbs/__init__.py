@@ -1,3 +1,0 @@
-
-class TranspilerError(RuntimeError):
-    pass

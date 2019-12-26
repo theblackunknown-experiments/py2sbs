@@ -18,13 +18,15 @@ from py2xyz import (
     dump,
 )
 
-from py2xyz.py import TranspilerError as PythonTranspilerError
-from py2xyz.sbs import TranspilerError as SubstanceTranspilerError
+from py2xyz import TranspilerError
 
-from py2xyz.sbs.transformer import (
+from py2xyz.compiler import ModuleTranspiler as IRModuleTranspiler
+
+from py2xyz.sbs.compiler import (
     PackageTranspiler as SubstancePackageTranspiler,
 )
 
+from py2xyz.passes import DEFAULTS as DEFAULT_IR_PASSES
 from py2xyz.py.passes import DEFAULTS as DEFAULT_PY_PASSES
 from py2xyz.sbs.passes import DEFAULTS as DEFAULT_SBS_PASSES
 
@@ -88,31 +90,41 @@ def main():
             ast_source = compilation_pass.visit(ast_source)
             logger.info(f'optimization {idx} - {CompilationPassClazz.__name__}\n{dump(ast_source)}')
 
+        transformer = IRModuleTranspiler()
+        ast_ir = transformer.visit(ast_source)
+
+        logger.info(f'IR\n{dump(ast_ir)}')
+
+        for idx, CompilationPassClazz in enumerate(filter(__filter_pass, DEFAULT_IR_PASSES), 1):
+            compilation_pass = CompilationPassClazz()
+            ast_ir = compilation_pass.visit(ast_ir)
+            logger.info(f'optimization {idx} - {CompilationPassClazz.__name__}\n{dump(ast_ir)}')
+
         if arguments.target == 'sbs':
             logger.info(f'py -> sbs')
 
             try:
                 transformer = SubstancePackageTranspiler()
-                ast_target = transformer.visit(ast_source)
+                ast_sbs = transformer.visit(ast_ir)
 
-                logger.info(f'raw\n{dump(ast_target)}')
+                logger.info(f'SBS IR\n{dump(ast_sbs)}')
 
                 for idx, CompilationPassClazz in enumerate(filter(__filter_pass, DEFAULT_SBS_PASSES), 1):
                     compilation_pass = CompilationPassClazz()
-                    ast_target = compilation_pass.visit(ast_target)
-                    logger.info(f'optimization {idx} - {CompilationPassClazz.__name__}\n{dump(ast_target)}')
+                    ast_sbs = compilation_pass.visit(ast_sbs)
+                    logger.info(f'optimization {idx} - {CompilationPassClazz.__name__}\n{dump(ast_sbs)}')
 
                 if arguments.output:
                     logger.info(f'codegen -> {arguments.output}')
                     with SubstancePackageGenerator(arguments.output) as codegen:
-                        codegen.visit(ast_target)
+                        codegen.visit(ast_sbs)
 
-            except (SubstanceTranspilerError):
+            except (TranspilerError):
                 logger.error(f'Transpilation Failure : {traceback.format_exc()}')
                 return -1
 
         return 0
-    except (PythonTranspilerError):
+    except (TranspilerError):
         logger.error(f'Transpilation Failure : {traceback.format_exc()}')
         return -1
     except (ValueError, SyntaxError):

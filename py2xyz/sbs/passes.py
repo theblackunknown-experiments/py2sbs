@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 from py2xyz import dump
 
-from py2xyz.sbs import TranspilerError
+from py2xyz import TranspilerError
 
 from py2xyz.sbs.ast import *
 
@@ -17,7 +17,7 @@ from py2xyz.sbs.analysis import iterate_inferred_argument_types
 class Pass(ast.NodeTransformer):
     pass
 
-class ResolveParameterFromDefaultValue(Pass):
+class ResolveParameterTypeFromAnnotation(Pass):
 
     @staticmethod
     def type_from_default(node):
@@ -35,7 +35,31 @@ class ResolveParameterFromDefaultValue(Pass):
         if (node.value is not None) and (node.type is None):
             return Parameter(
                 identifier=node.identifier,
-                type=ResolveParameterFromDefaultValue.type_from_default(node.value),
+                type=ResolveParameterTypeFromDefaultValue.type_from_default(node.value),
+                value=node.value,
+            )
+        else:
+            return node
+
+class ResolveParameterTypeFromDefaultValue(Pass):
+
+    @staticmethod
+    def type_from_default(node):
+        if isinstance(node, ast.Num):
+            return next(
+                enum_symbol
+                for enum_symbol in itertools.chain(ANY_TYPES)
+                if enum_symbol.value == node.n.__class__.__name__
+            )
+        else:
+            logger.warning(f'Unable to resolve type from default value expression: {dump(node)}')
+            return None
+
+    def visit_Parameter(self, node):
+        if (node.value is not None) and (node.type is None):
+            return Parameter(
+                identifier=node.identifier,
+                type=ResolveParameterTypeFromDefaultValue.type_from_default(node.value),
                 value=node.value,
             )
         else:
@@ -81,10 +105,10 @@ class FoldPow2ExpressionPass(Pass):
             left = self.visit(node.left)
 
             if not isinstance(left, Constant):
-                raise TranspilerError(f'Cannot fold pow in pow2 : left operand is not Constant - {dump(left)}')
+                raise TranspilerError(f'Cannot fold pow in pow2 : left operand is not Constan', left)
 
             if left.value != 2:
-                raise TranspilerError(f'Cannot fold pow in pow2 : left operand is not equals to 2 - {dump(left)}')
+                raise TranspilerError(f'Cannot fold pow in pow2 : left operand is not equals to 2', left)
 
             return UnaryOperation(
                 operator=Operator(opcode=NativeUnaryOperator.Pow2),
@@ -147,8 +171,67 @@ class FlattenOverloadedFunctionsPass(Pass):
             )
         )
 
+class ShaderToyIntrinsicPass(Pass):
+
+    INTRINSIC_LOOKUP_TABLE = {
+        'iResolution': '$size',
+    }
+
+    def visit_arguments(self, node):
+        return ast.arguments(
+            args=[
+                arg
+                for arg in node.args
+                if isinstance(arg.annotation, ast.Name)
+                if (arg.arg, arg.annotation.id) != self.EXPECTED_ARGUMENT_FRAG_COLOR
+            ],
+            vararg=node.vararg,
+            kwonlyargs=node.kwonlyargs,
+            kw_defaults=node.kw_defaults,
+            kwarg=node.kwarg,
+            # TODO get rid of defaults on 'fragColor'
+            defaults=node.defaults,
+        )
+
+    def visit_FunctionDef(self, node):
+        if node.name == 'mainImage':
+            are_arguments_valid = all(
+                next((
+                    True
+                    for arg in node.args.args
+                    if isinstance(arg.annotation, ast.Name)
+                    if (arg.arg, arg.annotation.id) == expected_arg
+                ), False)
+                for expected_arg in self.EXPECTED_ARGUMENTS
+            )
+
+            if not are_arguments_valid:
+                raise TranspilerError(f'Expected arguments not found: {self.EXPECTED_ARGUMENTS}', node.args)
+
+            return ast.FunctionDef(
+                name=node.name,
+                args=self.visit(node.args),
+                body=[
+                    ast.Assign(
+                        targets=[ ast.Name(id='fragColor', ctx=ast.Store()) ],
+                        value=ast.Call(
+                            func=ast.Name(id='vec4', ctx=ast.Load()),
+                            args=[ ast.Num(n=0.0) ] * 4,
+                            keywords=[],
+                        )
+                    )
+                ] + node.body + [
+                    ast.Return(
+                        value=ast.Name(id='fragColor', ctx=ast.Load())
+                    )
+                ]
+            )
+        else:
+            return node
+
 DEFAULTS = [
-    ResolveParameterFromDefaultValue,
+    # ShaderToyIntrinsicPass,
+    ResolveParameterTypeFromDefaultValue,
     FoldPow2ExpressionPass,
     ResolveFunctionOverloadSetPass,
     FlattenOverloadedFunctionsPass,
