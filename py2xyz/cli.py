@@ -158,14 +158,14 @@ if __name__ == '__main__':
                 'formatter': 'debug',
                 'stream': 'ext://sys.stdout',
             },
-            'file': {
-                'class': 'logging.handlers.RotatingFileHandler',
-                'formatter': 'debug',
-                'filename': Path('scanbox.log'),
-                'maxBytes': 1024*1024*1024*1024,
-                'backupCount': 5,
-                'encoding': 'utf-8',
-            },
+            # 'file': {
+            #     'class': 'logging.handlers.RotatingFileHandler',
+            #     'formatter': 'debug',
+            #     'filename': Path('scanbox.log'),
+            #     'maxBytes': 1024*1024*1024*1024,
+            #     'backupCount': 5,
+            #     'encoding': 'utf-8',
+            # },
             'null': {
                 'class': 'logging.NullHandler',
             }
