@@ -144,8 +144,8 @@ def main():
             for idx, CompilationPassClazz in enumerate(filter(__filter_pass, DEFAULT_SBS_PRE_PASSES), 1):
                 compilation_pass = CompilationPassClazz()
                 logger.info(f'pre-pass {idx} - {CompilationPassClazz.__name__}')
-                ast_sbs = compilation_pass.visit(ast_sbs)
-                logger.info(dump(ast_sbs))
+                ast_ir = compilation_pass.visit(ast_ir)
+                logger.info(dump(ast_ir))
 
             transformer = SubstancePackageTranspiler()
             ast_sbs = transformer.visit(ast_ir)

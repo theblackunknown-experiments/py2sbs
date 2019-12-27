@@ -15,6 +15,8 @@ from py2xyz.sbs.ast import (
     Package           as SBSPackage,
     FunctionGraph     as SBSFunctionGraph,
     FunctionParameter as SBSFunctionParameter,
+
+    Set               as SBSSet,
 )
 
 class Transpiler(ast.NodeTransformer):
@@ -43,8 +45,14 @@ class FunctionGraphTranspiler(Transpiler):
         return SBSFunctionGraph(
             identifier=node.identifier,
             parameters=list(map(parameter_transpiler.visit, node.arguments)),
-            nodes=[],
-            # nodes=list(map(node_transpiler.visit, node.body)),
+            nodes=list(
+                itertools.chain.from_iterable(
+                    map(
+                        node_transpiler.visit,
+                        node.body,
+                    ),
+                )
+            )
         )
 
 class FunctionGraphParametersTranspiler(Transpiler):
@@ -64,26 +72,21 @@ class FunctionGraphParametersTranspiler(Transpiler):
 
 class FunctionGraphNodesTranspiler(Transpiler):
 
+    def visit_ConstFloat4(self, node):
+        return node
+
+    def visit_Assign(self, node):
+        return (
+            SBSSet(**{
+            'value': node.identifier,
+            'from': self.visit(node.expression),
+            }),
+        )
+
     def visit_Return(self, node):
         subtranspiler = FunctionBodyExpressionTranspiler()
         return (
             IRReturn(expression=subtranspiler.visit(node.value)),
-        )
-
-    def visit_Assign(self, node):
-        # TODO https://en.wikipedia.org/wiki/Static_single_assignment_form
-        if len(node.targets) > 1:
-            raise TranspilerError(f'Assignements with multiple targets not supported', node)
-
-        target = node.targets[0]
-        if not isinstance(target, ast.Name):
-            raise TranspilerError(f'Assignement target other than Name not supported', target)
-
-        assert isinstance(target.ctx, ast.Store)
-
-        subtranspiler = FunctionBodyExpressionTranspiler()
-        return (
-            IRAssign(identifier=target.id, expression=subtranspiler.visit(node.value)),
         )
 
 # class CallOperandsTranspiler(Transpiler):

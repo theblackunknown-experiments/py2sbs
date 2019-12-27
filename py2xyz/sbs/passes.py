@@ -10,92 +10,42 @@ from py2xyz import dump
 
 from py2xyz import TranspilerError
 
-from py2xyz.sbs.ast import *
+from py2xyz.ir.ast import (
+    Assign                    as IRAssign,
+    Attribute                 as IRAttribute,
+    BinaryOperation           as IRBinaryOperation,
+    Call                      as IRCall,
+    Constant                  as IRConstant,
+    Function                  as IRFunction,
+    Module                    as IRModule,
+    Parameter                 as IRParameter,
+    TypedParameter            as IRTypedParameter,
+    Reference                 as IRReference,
+    Return                    as IRReturn,
+    UnaryOperation            as IRUnaryOperation,
 
-from py2xyz.sbs.analysis import iterate_inferred_argument_types
+    TextTypes                 as IRTextTypes,
+    LogicalTypes              as IRLogicalTypes,
+    NumericalTypes            as IRNumericalTypes,
+
+    ANY_TEXT_TYPES            as IR_ANY_TEXT_TYPES,
+    ANY_LOGICAL_TYPES         as IR_ANY_LOGICAL_TYPES,
+    ANY_INTEGRAL_TYPES        as IR_ANY_INTEGRAL_TYPES,
+    ANY_VECTOR_INTEGRAL_TYPES as IR_ANY_VECTOR_INTEGRAL_TYPES,
+    ANY_FLOAT_TYPES           as IR_ANY_FLOAT_TYPES,
+    ANY_VECTOR_FLOAT_TYPES    as IR_ANY_VECTOR_FLOAT_TYPES,
+    ANY_NUMERICAL_TYPES       as IR_ANY_NUMERICAL_TYPES,
+    ANY_VECTOR_TYPES          as IR_ANY_VECTOR_TYPES,
+    ANY_TYPES                 as IR_ANY_TYPES,
+)
+
+from py2xyz.sbs.ast import (
+    ConstFloat4               as SBSConstFloat4,
+)
 
 class Pass(ast.NodeTransformer):
-    pass
-
-class ResolveParameterTypeFromAnnotation(Pass):
-
-    @staticmethod
-    def type_from_default(node):
-        if isinstance(node, ast.Num):
-            return next(
-                enum_symbol
-                for enum_symbol in itertools.chain(ANY_TYPES)
-                if enum_symbol.value == node.n.__class__.__name__
-            )
-        else:
-            logger.warning(f'Unable to resolve type from default value expression: {dump(node)}')
-            return None
-
-    def visit_Parameter(self, node):
-        if (node.value is not None) and (node.type is None):
-            return Parameter(
-                identifier=node.identifier,
-                type=ResolveParameterTypeFromDefaultValue.type_from_default(node.value),
-                value=node.value,
-            )
-        else:
-            return node
-
-class ResolveParameterTypeFromDefaultValue(Pass):
-
-    @staticmethod
-    def type_from_default(node):
-        if isinstance(node, ast.Num):
-            return next(
-                enum_symbol
-                for enum_symbol in itertools.chain(ANY_TYPES)
-                if enum_symbol.value == node.n.__class__.__name__
-            )
-        else:
-            logger.warning(f'Unable to resolve type from default value expression: {dump(node)}')
-            return None
-
-    def visit_Parameter(self, node):
-        if (node.value is not None) and (node.type is None):
-            return Parameter(
-                identifier=node.identifier,
-                type=ResolveParameterTypeFromDefaultValue.type_from_default(node.value),
-                value=node.value,
-            )
-        else:
-            return node
-
-class ResolveFunctionOverloadSetPass(Pass):
-    def visit_FunctionGraph(self, node):
-        if len(node.parameters) == 0:
-            return node
-
-        overloads=list(iterate_inferred_argument_types(node, node.parameters, node.nodes))
-        # logger.debug(f'overloads : {pprint.pformat(overloads)}')
-        if len(overloads) == 0:
-            return node
-        elif len(overloads) == 1:
-            return FunctionGraph(
-                identifier=node.identifier,
-                attributes=node.attributes,
-                nodes=node.nodes,
-                parameters=[
-                    Parameter(
-                        identifier=parameter.identifier,
-                        type=parametertype,
-                        value=parameter.value,
-                    )
-                    for parameter, parametertype in zip(node.parameters, overloads[0])
-                ],
-            )
-        else:
-            return OverloadedFunctionGraph(
-                identifier=node.identifier,
-                attributes=node.attributes,
-                parameters=node.parameters,
-                nodes=node.nodes,
-                overloads=overloads,
-            )
+    def __init__(self):
+        self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
 
 class FoldPow2ExpressionPass(Pass):
     def visit_BinaryOperation(self, node):
@@ -117,119 +67,29 @@ class FoldPow2ExpressionPass(Pass):
         else:
             return node
 
-class FlattenOverloadedFunctionsPass(Pass):
-    # Inspired by struct module packing
-    FORMAT_CHARACTERS_TABLE = {
-        TextTypes.String       :  's',
-        LogicalTypes.Boolean   :  'b',
-        NumericalTypes.Integer1: 'i1',
-        NumericalTypes.Integer2: 'i2',
-        NumericalTypes.Integer3: 'i3',
-        NumericalTypes.Integer4: 'i4',
-        NumericalTypes.Float1  : 'f1',
-        NumericalTypes.Float2  : 'f2',
-        NumericalTypes.Float3  : 'f3',
-        NumericalTypes.Float4  : 'f4',
+class ResolveConstNode(Pass):
+
+    LOOKUP_TABLE = {
+        IRNumericalTypes.Float4: SBSConstFloat4,
     }
 
-    @staticmethod
-    def packargtypes(argtypes):
-        return '-'.join(
-            map(
-                FlattenOverloadedFunctionsPass.FORMAT_CHARACTERS_TABLE.get,
-                argtypes,
-            )
-        )
-
-    def flatten_overloads(self, node):
-        if not isinstance(node, OverloadedFunctionGraph):
-            return ( node, )
-
-        return (
-            FunctionGraph(
-                identifier=f'{node.identifier}_{FlattenOverloadedFunctionsPass.packargtypes(argtypes)}',
-                attributes=node.attributes,
-                nodes=node.nodes,
-                parameters=[
-                    Parameter(
-                        identifier=parameter.identifier,
-                        type=parametertype,
-                        value=parameter.value,
-                    )
-                    for parameter, parametertype in zip(node.parameters, argtypes)
-                ],
-            )
-            for argtypes in node.overloads
-        )
-
-    def visit_Package(self, node):
-        return Package(
-            description=node.description,
-            content=list(
-                # i.e. flatmap
-                itertools.chain.from_iterable(map(self.flatten_overloads, node.content))
-            )
-        )
-
-class ShaderToyIntrinsicPass(Pass):
-
-    INTRINSIC_LOOKUP_TABLE = {
-        'iResolution': '$size',
-    }
-
-    def visit_arguments(self, node):
-        return ast.arguments(
-            args=[
-                arg
-                for arg in node.args
-                if isinstance(arg.annotation, ast.Name)
-                if (arg.arg, arg.annotation.id) != self.EXPECTED_ARGUMENT_FRAG_COLOR
-            ],
-            vararg=node.vararg,
-            kwonlyargs=node.kwonlyargs,
-            kw_defaults=node.kw_defaults,
-            kwarg=node.kwarg,
-            # TODO get rid of defaults on 'fragColor'
-            defaults=node.defaults,
-        )
-
-    def visit_FunctionDef(self, node):
-        if node.name == 'mainImage':
-            are_arguments_valid = all(
-                next((
-                    True
-                    for arg in node.args.args
-                    if isinstance(arg.annotation, ast.Name)
-                    if (arg.arg, arg.annotation.id) == expected_arg
-                ), False)
-                for expected_arg in self.EXPECTED_ARGUMENTS
-            )
-
-            if not are_arguments_valid:
-                raise TranspilerError(f'Expected arguments not found: {self.EXPECTED_ARGUMENTS}', node.args)
-
-            return ast.FunctionDef(
-                name=node.name,
-                args=self.visit(node.args),
-                body=[
-                    ast.Assign(
-                        targets=[ ast.Name(id='fragColor', ctx=ast.Store()) ],
-                        value=ast.Call(
-                            func=ast.Name(id='vec4', ctx=ast.Load()),
-                            args=[ ast.Num(n=0.0) ] * 4,
-                            keywords=[],
-                        )
-                    )
-                ] + node.body + [
-                    ast.Return(
-                        value=ast.Name(id='fragColor', ctx=ast.Load())
-                    )
-                ]
-            )
-        else:
+    def visit_Call(self, node):
+        if node.function not in self.LOOKUP_TABLE:
+            self.logger.debug(f'something else than a const node \n{dump(node)}')
             return node
 
+        if not all(map(lambda _: isinstance(_, IRConstant), node.args)):
+            self.logger.debug(f'arguments are not all constant \n{dump(node)}')
+            return node
+
+        sbsnodeclass = self.LOOKUP_TABLE[node.function]
+        return sbsnodeclass(**{
+            fieldname: constnode.value
+            for fieldname, constnode in zip(sbsnodeclass._fields, node.args)
+        })
+
 DEFAULT_PRE_PASSES = [
+    ResolveConstNode,
 ]
 
 DEFAULT_POST_PASSES = [

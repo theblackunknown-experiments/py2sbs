@@ -231,5 +231,19 @@ class FunctionParameter(AST):
 class Node(AST, abc.ABC):
     pass
 
-class FunctionNode(AST, abc.ABC):
+class FunctionNode(Node, abc.ABC):
     pass
+
+class ConstFloat4(FunctionNode):
+    _fields = (
+        'x',
+        'y',
+        'z',
+        'w',
+    )
+
+class Set(FunctionNode):
+    _fields = (
+        'value',
+        'from'
+    )
