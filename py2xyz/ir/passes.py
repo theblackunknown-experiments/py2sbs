@@ -104,7 +104,7 @@ class ShaderToyImageEntryPoint(ShaderToyPass):
                 IRAssign(
                     identifier=self.ARGUMENT_FRAG_COLOR.name,
                     expression=IRCall(
-                        func=self.ARGUMENT_FRAG_COLOR.type,
+                        function=self.ARGUMENT_FRAG_COLOR.type,
                         args=[ IRConstant(value=0.0) ] * 4,
                         keywords=[],
                     )

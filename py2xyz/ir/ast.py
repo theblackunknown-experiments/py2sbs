@@ -6,12 +6,8 @@ import enum
 class TextTypes(enum.Enum):
     String = 's'
 
-ANY_TEXT_TYPES = set(TextTypes)
-
 class LogicalTypes(enum.Enum):
     Boolean = 'b1'
-
-ANY_LOGICAL_TYPES = set(LogicalTypes)
 
 class NumericalTypes(enum.Enum):
     Integer1 = 'i1'
@@ -22,6 +18,10 @@ class NumericalTypes(enum.Enum):
     Float2   = 'f2'
     Float3   = 'f3'
     Float4   = 'f4'
+
+ANY_TEXT_TYPES = set(TextTypes)
+
+ANY_LOGICAL_TYPES = set(LogicalTypes)
 
 ANY_INTEGRAL_TYPES = {
     NumericalTypes.Integer1,

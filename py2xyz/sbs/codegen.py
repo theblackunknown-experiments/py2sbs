@@ -7,11 +7,36 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-from py2xyz import (
-    dump,
-)
+from py2xyz import dump
 
-from py2xyz.sbs.ast import *
+from py2xyz.sbs.ast import (
+    Package            as SBSPackage,
+    FunctionGraph      as SBSFunctionGraph,
+    FunctionParameter  as SBSFunctionParameter,
+
+    TextTypes          as SBSTextTypes,
+    LogicalTypes       as SBSLogicalTypes,
+    NumericalTypes     as SBSNumericalTypes,
+
+    Addition           as SBSAddition,
+    Substraction       as SBSSubstraction,
+    Modulo             as SBSModulo,
+    Multiplication     as SBSMultiplication,
+    Division           as SBSDivision,
+    Negation           as SBSNegation,
+    Dot                as SBSDot,
+    Cross              as SBSCross,
+    Modulus            as SBSModulus,
+    Floor              as SBSFloor,
+    Ceil               as SBSCeil,
+    Cos                as SBSCos,
+    Sin                as SBSSin,
+    SquareRoot         as SBSSquareRoot,
+    NaturalLogarithm   as SBSNaturalLogarithm,
+    Logarithm2         as SBSLogarithm2,
+    NaturalExponential as SBSNaturalExponential,
+    PowerOf2           as SBSPowerOf2,
+)
 
 from py2xyz.sbs.symtable import FunctionSymbolTable
 
@@ -25,12 +50,9 @@ from pysbs.sbsenum import (
 from pysbs.sbsgenerator import createSBSDocument
 from pysbs.autograph.ag_layout import layoutDoc as layout
 
-class UnsupportedASTNode(RuntimeError):
-    pass
-
 class Generator(ast.NodeVisitor):
     def generic_visit(self, node):
-        raise UnsupportedASTNode(dump(node))
+        raise TranspilerError(node=node)
 
 class PackageGenerator(Generator):
     def __init__(self, stream : io.FileIO):
@@ -73,42 +95,42 @@ class PackageGenerator(Generator):
             aFunctionIdentifier=node.identifier,
         )
 
-        subgenerator = GraphGenerator(graph)
+        subgenerator = FunctionGraphGenerator(graph)
         subgenerator.visit(node)
 
-class GraphGenerator(Generator):
+class FunctionGraphGenerator(Generator):
 
     DEFAULT_WIDGET_FROM_TYPE = {
-        NumericalTypes.Integer1: WidgetEnum.SLIDER_INT1,
-        NumericalTypes.Integer2: WidgetEnum.SLIDER_INT2,
-        NumericalTypes.Integer3: WidgetEnum.SLIDER_INT3,
-        NumericalTypes.Integer4: WidgetEnum.SLIDER_INT4,
-        NumericalTypes.Float1  : WidgetEnum.SLIDER_FLOAT1,
-        NumericalTypes.Float2  : WidgetEnum.SLIDER_FLOAT2,
-        NumericalTypes.Float3  : WidgetEnum.SLIDER_FLOAT3,
-        NumericalTypes.Float4  : WidgetEnum.SLIDER_FLOAT4,
+        SBSNumericalTypes.Integer1: WidgetEnum.SLIDER_INT1,
+        SBSNumericalTypes.Integer2: WidgetEnum.SLIDER_INT2,
+        SBSNumericalTypes.Integer3: WidgetEnum.SLIDER_INT3,
+        SBSNumericalTypes.Integer4: WidgetEnum.SLIDER_INT4,
+        SBSNumericalTypes.Float1  : WidgetEnum.SLIDER_FLOAT1,
+        SBSNumericalTypes.Float2  : WidgetEnum.SLIDER_FLOAT2,
+        SBSNumericalTypes.Float3  : WidgetEnum.SLIDER_FLOAT3,
+        SBSNumericalTypes.Float4  : WidgetEnum.SLIDER_FLOAT4,
     }
 
     TYPE_TO_FUNCTION = {
-        LogicalTypes.Boolean   : FunctionEnum.GET_BOOL,
-        NumericalTypes.Integer1: FunctionEnum.GET_INTEGER1 ,
-        NumericalTypes.Integer2: FunctionEnum.GET_INTEGER2 ,
-        NumericalTypes.Integer3: FunctionEnum.GET_INTEGER3 ,
-        NumericalTypes.Integer4: FunctionEnum.GET_INTEGER4 ,
-        NumericalTypes.Float1  : FunctionEnum.GET_FLOAT1   ,
-        NumericalTypes.Float2  : FunctionEnum.GET_FLOAT2   ,
-        NumericalTypes.Float3  : FunctionEnum.GET_FLOAT3   ,
-        NumericalTypes.Float4  : FunctionEnum.GET_FLOAT4   ,
-        TextTypes.String       : FunctionEnum.GET_STRING   ,
+        SBSLogicalTypes.Boolean   : FunctionEnum.GET_BOOL,
+        SBSNumericalTypes.Integer1: FunctionEnum.GET_INTEGER1 ,
+        SBSNumericalTypes.Integer2: FunctionEnum.GET_INTEGER2 ,
+        SBSNumericalTypes.Integer3: FunctionEnum.GET_INTEGER3 ,
+        SBSNumericalTypes.Integer4: FunctionEnum.GET_INTEGER4 ,
+        SBSNumericalTypes.Float1  : FunctionEnum.GET_FLOAT1   ,
+        SBSNumericalTypes.Float2  : FunctionEnum.GET_FLOAT2   ,
+        SBSNumericalTypes.Float3  : FunctionEnum.GET_FLOAT3   ,
+        SBSNumericalTypes.Float4  : FunctionEnum.GET_FLOAT4   ,
+        SBSTextTypes.String       : FunctionEnum.GET_STRING   ,
     }
 
     OPCODE_TO_FUNCTION = {
-        NativeBinaryOperator.Add  : FunctionEnum.ADD,
-        NativeBinaryOperator.Sub  : FunctionEnum.SUB,
-        NativeBinaryOperator.Mult : FunctionEnum.MUL,
-        NativeBinaryOperator.Div  : FunctionEnum.DIV,
-        NativeBinaryOperator.Mod  : FunctionEnum.MOD,
-        NativeUnaryOperator.Pow2  : FunctionEnum.POW2,
+        SBSAddition       : FunctionEnum.ADD,
+        SBSSubstraction   : FunctionEnum.SUB,
+        SBSMultiplication : FunctionEnum.MUL,
+        SBSDivision       : FunctionEnum.DIV,
+        SBSModulo         : FunctionEnum.MOD,
+        SBSPowerOf2       : FunctionEnum.POW2,
     }
 
     def __init__(self, graph):
@@ -119,10 +141,13 @@ class GraphGenerator(Generator):
         self.symbol_table = FunctionSymbolTable(node.identifier)
         self.logger.debug(f'{node} - generated function symbol table')
 
-        for subnode in ast.iter_child_nodes(node):
+        for subnode in node.parameters:
             self.visit(subnode)
 
-    def visit_Parameter(self, node):
+        for subnode in node.nodes:
+            self.visit(subnode)
+
+    def visit_FunctionParameter(self, node):
         sbsparameter = self.graph.addInputParameter(
             aIdentifier=node.identifier,
             aWidget=self.DEFAULT_WIDGET_FROM_TYPE[node.type],

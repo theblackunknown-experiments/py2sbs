@@ -3,25 +3,42 @@ import ast
 import abc
 import enum
 
-class TextTypes(enum.Enum):
-    String = 's'
+from py2xyz.ir.ast import (
+    Assign                    as IRAssign,
+    Attribute                 as IRAttribute,
+    BinaryOperation           as IRBinaryOperation,
+    Call                      as IRCall,
+    Constant                  as IRConstant,
+    Function                  as IRFunction,
+    Module                    as IRModule,
+    Parameter                 as IRParameter,
+    TypedParameter            as IRTypedParameter,
+    Reference                 as IRReference,
+    Return                    as IRReturn,
+    UnaryOperation            as IRUnaryOperation,
+
+    TextTypes                 as IRTextTypes,
+    LogicalTypes              as IRLogicalTypes,
+    NumericalTypes            as IRNumericalTypes,
+
+    ANY_TEXT_TYPES            as IR_ANY_TEXT_TYPES,
+    ANY_LOGICAL_TYPES         as IR_ANY_LOGICAL_TYPES,
+    ANY_INTEGRAL_TYPES        as IR_ANY_INTEGRAL_TYPES,
+    ANY_VECTOR_INTEGRAL_TYPES as IR_ANY_VECTOR_INTEGRAL_TYPES,
+    ANY_FLOAT_TYPES           as IR_ANY_FLOAT_TYPES,
+    ANY_VECTOR_FLOAT_TYPES    as IR_ANY_VECTOR_FLOAT_TYPES,
+    ANY_NUMERICAL_TYPES       as IR_ANY_NUMERICAL_TYPES,
+    ANY_VECTOR_TYPES          as IR_ANY_VECTOR_TYPES,
+    ANY_TYPES                 as IR_ANY_TYPES,
+)
+
+TextTypes      = IRTextTypes
+LogicalTypes   = IRLogicalTypes
+NumericalTypes = IRNumericalTypes
 
 ANY_TEXT_TYPES = set(TextTypes)
 
-class LogicalTypes(enum.Enum):
-    Boolean = 'b1'
-
 ANY_LOGICAL_TYPES = set(LogicalTypes)
-
-class NumericalTypes(enum.Enum):
-    Integer1 = 'i1'
-    Integer2 = 'i2'
-    Integer3 = 'i3'
-    Integer4 = 'i4'
-    Float1   = 'f1'
-    Float2   = 'f2'
-    Float3   = 'f3'
-    Float4   = 'f4'
 
 ANY_INTEGRAL_TYPES = {
     NumericalTypes.Integer1,
@@ -55,73 +72,127 @@ ANY_VECTOR_TYPES = ANY_VECTOR_INTEGRAL_TYPES | ANY_VECTOR_FLOAT_TYPES
 
 ANY_TYPES = ANY_TEXT_TYPES | ANY_LOGICAL_TYPES | ANY_NUMERICAL_TYPES
 
-class NonNativeNumericalOperator(enum.Enum):
-    Pow  = enum.auto()
+class Operator(ast.AST, abc.ABC):
+    def signatures():
+        return self.SIGNATURES
 
-    def overloads(self):
-        if self in {NonNativeNumericalOperator.Pow}:
-            return (
-                (_, _ )
-                for _ in ANY_NUMERICAL_TYPES
-            )
-        else:
-            raise NotImplementedError(f'Overloads not implemented for {self}')
+_BOOLEAN_UNARY_OPERATION_SIGNATURES = [
+    ( (_,), _ )
+    for _ in ANY_LOGICAL_TYPES
+]
 
-class NativeBinaryOperator(enum.Enum):
-    Add        = enum.auto()
-    Sub        = enum.auto()
-    Mult       = enum.auto()
-    MultScalar = enum.auto()
-    Div        = enum.auto()
-    Mod        = enum.auto()
-    Dot        = enum.auto()
-    Cross      = enum.auto()
-    And        = enum.auto()
-    Or         = enum.auto()
-    Equals     = enum.auto()
-    NotEquals  = enum.auto()
+_BOOLEAN_BINARY_OPERATION_SIGNATURES = [
+    ( (_, _), _ )
+    for _ in ANY_LOGICAL_TYPES
+]
 
-    def overloads(self):
-        symbols = NativeBinaryOperator
-        if self in {symbols.Add, symbols.Mod, symbols.Mult, symbols.Div}:
-            return (
-                (_, _)
-                for _ in ANY_NUMERICAL_TYPES
-            )
-        elif self in {symbols.Equals, symbols.NotEquals}:
-            return (
-                (_, _)
-                for _ in {NumericalTypes.Float1, NumericalTypes.Integer1}
-            )
-        elif self in {symbols.MultScalar}:
-            return (
-                (_, NumericalTypes.Float1)
-                for _ in {NumericalTypes.Float2, NumericalTypes.Float3, NumericalTypes.Float4}
-            )
-        elif self in {symbols.Dot, symbols.Cross}:
-            return (
-                (_, _)
-                for _ in {NumericalTypes.Float2, NumericalTypes.Float3, NumericalTypes.Float4}
-            )
-        elif self in {symbols.And, symbols.Or}:
-            return (
-                (LogicalTypes.Boolean, LogicalTypes.Boolean)
-            )
-        else:
-            raise NotImplementedError(f'Overloads not implemented for {self}')
+_FLOAT_BINARY_OPERATION_SIGNATURES = [
+    ( (_, _), _ )
+    for _ in { NumericalTypes.Float1 }
+]
 
-class NativeUnaryOperator(enum.Enum):
-    Not  = enum.auto()
-    Sub  = enum.auto()
-    Pow2 = enum.auto()
+_REAL_BINARY_OPERATION_SIGNATURES = [
+    ( (_, _), _ )
+    for _ in ANY_NUMERICAL_TYPES
+]
 
-    def overloads(self):
-        if self in {NativeUnaryOperator.Pow2}:
-            return ANY_FLOAT_TYPES
-        elif self in {NativeUnaryOperator.Not}:
-            return ANY_LOGICAL_TYPES
-        else:
-            raise NotImplementedError(f'Overloads not implemented for {self}')
+_NON_VECTOR_BINARY_OPERATION_SIGNATURES = [
+    ( (_, _), _ )
+    for _ in ANY_NUMERICAL_TYPES - ANY_VECTOR_TYPES
+]
+
+_VECTOR_BINARY_OPERATION_SIGNATURES = [
+    ( (_, _), _ )
+    for _ in ANY_VECTOR_TYPES
+]
+
+_FLOAT_UNARY_OPERATION_SIGNATURES = [
+    ( (_,), _ )
+    for _ in { NumericalTypes.Float1 }
+]
+
+_REAL_UNARY_OPERATION_SIGNATURES = [
+    ( (_,), _ )
+    for _ in ANY_NUMERICAL_TYPES
+]
+
+# Maths
+
+class Addition(Operator):
+    SIGNATURES = _REAL_BINARY_OPERATION_SIGNATURES
+
+class Substraction(Operator):
+    SIGNATURES = _REAL_BINARY_OPERATION_SIGNATURES
+
+class Modulo(Operator):
+    SIGNATURES = _REAL_BINARY_OPERATION_SIGNATURES
+
+class Multiplication(Operator):
+    SIGNATURES = _REAL_BINARY_OPERATION_SIGNATURES
+
+# TODO Scalar Multiplication
+
+class Division(Operator):
+    SIGNATURES = _REAL_BINARY_OPERATION_SIGNATURES
+
+class Negation(Operator):
+    SIGNATURES = _REAL_UNARY_OPERATION_SIGNATURES
+
+# Linear Algebra & Maths +
+
+class Dot(Operator):
+    SIGNATURES = _VECTOR_BINARY_OPERATION_SIGNATURES
+
+class Cross(Operator):
+    SIGNATURES = _VECTOR_BINARY_OPERATION_SIGNATURES
+
+class Modulus(Operator):
+    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
+
+class Floor(Operator):
+    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
+
+class Ceil(Operator):
+    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
+
+class Cos(Operator):
+    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
+
+class Sin(Operator):
+    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
+
+class SquareRoot(Operator):
+    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
+
+class NaturalLogarithm(Operator):
+    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
+
+class Logarithm2(Operator):
+    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
+
+class NaturalExponential(Operator):
+    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
+
+class PowerOf2(Operator):
+    SIGNATURES = _FLOAT_BINARY_OPERATION_SIGNATURES
+
+# Logicals
+
+class And(Operator):
+    SIGNATURES = _BOOLEAN_BINARY_OPERATION_SIGNATURES
+
+class Or(Operator):
+    SIGNATURES = _BOOLEAN_BINARY_OPERATION_SIGNATURES
+
+class Not(Operator):
+    SIGNATURES = _BOOLEAN_UNARY_OPERATION_SIGNATURES
+
+# Comparison
+
+class Equals(Operator):
+    SIGNATURES = _NON_VECTOR_BINARY_OPERATION_SIGNATURES
+
+# TODO >, >=, <, <=
 
 class AST(ast.AST, abc.ABC):
     pass
@@ -133,79 +204,32 @@ class Package(AST):
     )
 
 class Graph(AST, abc.ABC):
+    pass
+
+class GraphStatement(AST, abc.ABC):
+    pass
+
+class Output(GraphStatement):
     _fields = (
-        'identifier',
-        'attributes',
-        'parameters',
-        'nodes',
+        'node',
     )
 
 class FunctionGraph(Graph):
-    pass
-
-class OverloadedFunctionGraph(FunctionGraph):
     _fields = (
         'identifier',
         'parameters',
         'nodes',
-        'overloads',
     )
 
-class Parameter(AST, abc.ABC):
+class FunctionParameter(AST):
     _fields = (
         'identifier',
         'type',
         'value',
     )
 
-class Statement(AST, abc.ABC):
+class Node(AST, abc.ABC):
     pass
 
-class Output(Statement):
-    _fields = (
-        'expression',
-    )
-
-class Set(Statement):
-    _fields = (
-        'identifier',
-        'expression',
-    )
-
-class Expression(AST, abc.ABC):
+class FunctionNode(AST, abc.ABC):
     pass
-
-class Get(Expression):
-    _fields = (
-        'identifier',
-    )
-
-class Call(Expression):
-    _fields = (
-        'url',
-        'operands',
-        'package',
-    )
-
-class Operator(AST):
-    _fields = (
-        'opcode',
-    )
-
-class BinaryOperation(Expression):
-    _fields = (
-        'left',
-        'right',
-        'operator',
-    )
-
-class UnaryOperation(Expression):
-    _fields = (
-        'operator',
-        'operand',
-    )
-
-class Constant(Expression):
-    _fields = (
-        'value',
-    )

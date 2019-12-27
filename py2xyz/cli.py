@@ -175,7 +175,7 @@ if __name__ == '__main__':
         'version': 1,
         'formatters': {
             'debug': {
-                'format' : '[{filename}:{lineno: >3}] {message}',
+                'format' : '[{levelname: >5}][{filename}:{lineno: >3}] {message}',
                 'datefmt': None,
                 'style'  : '{',
             },
