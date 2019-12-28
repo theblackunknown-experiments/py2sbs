@@ -88,8 +88,22 @@ class ResolveConstNode(Pass):
             for fieldname, constnode in zip(sbsnodeclass._fields, node.args)
         })
 
+class ResolveShaderToyIntrinsics(Pass):
+
+    LOOKUP_TABLE = {
+        # 'fragCoord'  : '$uv', # TODO for now fragCoord is considered as function parameter -> no need to remap it to $uv
+        'iResolution': '$size',
+    }
+
+    def visit_Attribute(self, node):
+        return IRAttribute(
+            variable=self.LOOKUP_TABLE.get(node.variable, node.variable),
+            fields=node.fields,
+        )
+
 DEFAULT_PRE_PASSES = [
     ResolveConstNode,
+    ResolveShaderToyIntrinsics,
 ]
 
 DEFAULT_POST_PASSES = [

@@ -3,12 +3,15 @@ import ast
 import logging
 import itertools
 
+from pprint import pformat
+
 logger = logging.getLogger(__name__)
 
 from py2xyz import dump, TranspilerError
 
 from py2xyz.ir.ast import (
     Constant          as IRConstant,
+    Reference         as IRReference,
 )
 
 from py2xyz.sbs.ast import (
@@ -19,6 +22,8 @@ from py2xyz.sbs.ast import (
     Package           as SBSPackage,
     FunctionGraph     as SBSFunctionGraph,
     FunctionParameter as SBSFunctionParameter,
+
+    Output            as SBSOutput,
 
     Set               as SBSSet,
     Div               as SBSDiv,
@@ -65,7 +70,7 @@ class FunctionGraphTranspiler(Transpiler):
         sbsnode = SBSFunctionGraph(
             identifier=node.identifier,
             parameters=sbsparameters,
-            nodes=list(
+            _statements=list(
                 itertools.chain.from_iterable(
                     map(
                         node_transpiler.visit,
@@ -102,10 +107,29 @@ class FunctionGraphNodesTranspiler(Transpiler):
             for parameter in sbsparameters
         })
 
+        # sbs intrinsics
+        self.symboltable.update({
+            '$uv': SBSGetFloat2('$uv'),
+            '$size': SBSGetFloat2('$size'),
+        })
+        self.logger.debug(f'initial symtable {pformat({ (k, dump(v)) for k,v in self.symboltable.items()})}')
+
     def generic_visit(self, node):
         raise NotImplementedError(dump(node))
 
     # SBS nodes
+
+    def visit_GetFloat1(self, node):
+        return node
+
+    def visit_GetFloat2(self, node):
+        return node
+
+    def visit_GetFloat3(self, node):
+        return node
+
+    def visit_GetFloat4(self, node):
+        return node
 
     def visit_ConstFloat4(self, node):
         return node
@@ -119,16 +143,33 @@ class FunctionGraphNodesTranspiler(Transpiler):
         }
         return TYPE_TO_CLASS[node.type](variable=node.identifier)
 
-    # IR nodes
+    # IR nodes - Statements
+
+    def visit_Return(self, node):
+        if isinstance(node.expression, IRReference):
+            if node.expression.variable not in self.symboltable:
+                raise TranspilerError(f'{node.expression.variable} variable not bound', node)
+
+            sbsnode = SBSOutput(
+                node=self.symboltable[node.expression.variable]
+            )
+            self.logger.debug(f'{dump(node, depth=_DEBUG_DEPTH)} -> {dump(sbsnode)}')
+            return (sbsnode, )
+        else:
+            raise NotImplementedError(dump(node))
 
     def visit_Assign(self, node):
         sbsnode = SBSSet(
             value=node.identifier,
             from_node=self.visit(node.expression),
         )
-        self.symboltable[node.identifier] = sbsnode
         self.logger.debug(f'{dump(node, depth=_DEBUG_DEPTH)} -> {dump(sbsnode)}')
+
+        self.symboltable[node.identifier] = sbsnode
+        self.logger.debug(f'{dump(node, depth=_DEBUG_DEPTH)} symtable update {pformat({ (k, dump(v)) for k,v in self.symboltable.items()})}')
         return (sbsnode, )
+
+    # IR nodes - Expressions
 
     def visit_BinaryOperation(self, node):
         sbsnode = self.visit(node.operator)

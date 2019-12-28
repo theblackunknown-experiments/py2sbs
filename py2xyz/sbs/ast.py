@@ -218,7 +218,9 @@ class FunctionGraph(Graph):
     _fields = (
         'identifier',
         'parameters',
+        '_statements',
         'nodes',
+        'outputs',
     )
 
 class FunctionParameter(AST):
