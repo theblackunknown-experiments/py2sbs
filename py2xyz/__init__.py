@@ -36,7 +36,7 @@ def dump(node, annotate_fields=True, include_attributes=False, indent='  ', dept
             else:
                 return f'{node.__class__.__name__}({", ".join( fieldname for fieldname, _ in formatted_fields )})'
 
-        elif isinstance(node, list):
+        elif isinstance(node, (list, set, tuple)):
             nodes = node
 
             formatted_nodes = [ '[' ]

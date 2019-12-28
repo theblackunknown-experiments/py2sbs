@@ -1,8 +1,9 @@
 
 import ast
-import pprint
 import logging
 import itertools
+
+from pprint import pformat
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,12 @@ from py2xyz.ir.ast import (
 )
 
 from py2xyz.sbs.ast import (
-    ConstFloat4               as SBSConstFloat4,
+    ConstFloat4    as SBSConstFloat4,
+
+    Output         as SBSOutput,
+
+    FunctionGraph  as SBSFunctionGraph,
+    FunctionNode   as SBSFunctionNode,
 )
 
 class Pass(ast.NodeTransformer):
@@ -101,12 +107,101 @@ class ResolveShaderToyIntrinsics(Pass):
             fields=node.fields,
         )
 
+class ResolveGraphStatements(Pass):
+
+    def __init__(self):
+        super().__init__()
+        self.graph = None
+
+    def visit_FunctionGraph(self, node):
+
+        node_resolvers = SBSFunctionGraphNodeResolvers()
+        for statement in node._statements:
+            node_resolvers.visit(statement)
+
+        outputs = [
+            statement
+            for statement in node._statements
+            if isinstance(statement, SBSOutput)
+        ]
+
+        if len(outputs) > 1:
+            raise TranspilerError(f'Found {len(outputs)} outputs for a Function graph, only 0/1 is expected : {pformat([dump(_) for _ in outputs])}')
+
+        return SBSFunctionGraph(
+            identifier=node.identifier,
+            parameters=node.parameters,
+            _statements=node._statements,
+            nodes=node_resolvers.nodes,
+            outputs=outputs,
+        )
+
+class SBSFunctionGraphNodeResolvers(ast.NodeVisitor):
+    def __init__(self):
+        self.nodes = list()
+
+    def __add(self, node):
+        if node not in self.nodes:
+            self.nodes.append(node)
+
+    def visit_Set(self, node):
+        self.visit(node.from_node)
+        self.__add(node)
+
+    def visit_Div(self, node):
+        self.visit(node.a)
+        self.visit(node.b)
+        self.__add(node)
+
+    def visit_Output(self, node):
+        self.visit(node.node)
+
+    def visit_GetFloat1(self, node):
+        self.__add(node)
+
+    def visit_GetFloat2(self, node):
+        self.__add(node)
+
+    def visit_GetFloat3(self, node):
+        self.__add(node)
+
+    def visit_GetFloat4(self, node):
+        self.__add(node)
+
+    def visit_ConstFloat1(self, node):
+        self.__add(node)
+
+    def visit_ConstFloat2(self, node):
+        self.__add(node)
+
+    def visit_ConstFloat3(self, node):
+        self.__add(node)
+
+    def visit_ConstFloat4(self, node):
+        self.__add(node)
+
+    def visit_Swizzle2(self, node):
+        self.visit(node.from_node)
+        self.__add(node)
+
+    def visit_Swizzle3(self, node):
+        self.visit(node.from_node)
+        self.__add(node)
+
+    def visit_Swizzle4(self, node):
+        self.visit(node.from_node)
+        self.__add(node)
+
+    def generic_visit(self, node):
+        raise NotImplementedError(dump(node))
+
 DEFAULT_PRE_PASSES = [
     ResolveConstNode,
     ResolveShaderToyIntrinsics,
 ]
 
 DEFAULT_POST_PASSES = [
+    ResolveGraphStatements,
     # ShaderToyIntrinsicPass,
     # ResolveParameterTypeFromDefaultValue,
     # FoldPow2ExpressionPass,
