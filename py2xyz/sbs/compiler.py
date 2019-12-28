@@ -5,21 +5,38 @@ import itertools
 
 logger = logging.getLogger(__name__)
 
-from py2xyz import TranspilerError
+from py2xyz import dump, TranspilerError
 
 from py2xyz.ir.ast import (
     Constant          as IRConstant,
 )
 
 from py2xyz.sbs.ast import (
+    TextTypes         as SBSTextTypes,
+    LogicalTypes      as SBSLogicalTypes,
+    NumericalTypes    as SBSNumericalTypes,
+
     Package           as SBSPackage,
     FunctionGraph     as SBSFunctionGraph,
     FunctionParameter as SBSFunctionParameter,
 
     Set               as SBSSet,
+    Div               as SBSDiv,
+    GetFloat1         as SBSGetFloat1,
+    GetFloat2         as SBSGetFloat2,
+    GetFloat3         as SBSGetFloat3,
+    GetFloat4         as SBSGetFloat4,
+    Swizzle2          as SBSSwizzle2,
+    Swizzle3          as SBSSwizzle3,
+    Swizzle4          as SBSSwizzle4,
 )
 
+_DEBUG_DEPTH = 2
+
 class Transpiler(ast.NodeTransformer):
+    def __init__(self):
+        self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
+
     def generic_visit(self, node):
         raise TranspilerError(node=node)
 
@@ -41,10 +58,13 @@ class FunctionGraphTranspiler(Transpiler):
 
     def visit_Function(self, node):
         parameter_transpiler = FunctionGraphParametersTranspiler()
-        node_transpiler = FunctionGraphNodesTranspiler()
-        return SBSFunctionGraph(
+        sbsparameters = list(map(parameter_transpiler.visit, node.arguments))
+
+        node_transpiler = FunctionGraphNodesTranspiler(sbsparameters)
+
+        sbsnode = SBSFunctionGraph(
             identifier=node.identifier,
-            parameters=list(map(parameter_transpiler.visit, node.arguments)),
+            parameters=sbsparameters,
             nodes=list(
                 itertools.chain.from_iterable(
                     map(
@@ -54,6 +74,8 @@ class FunctionGraphTranspiler(Transpiler):
                 )
             )
         )
+        self.logger.debug(f'{node.__class__.__name__} -> {dump(sbsnode)}')
+        return sbsnode
 
 class FunctionGraphParametersTranspiler(Transpiler):
 
@@ -72,92 +94,107 @@ class FunctionGraphParametersTranspiler(Transpiler):
 
 class FunctionGraphNodesTranspiler(Transpiler):
 
+    def __init__(self, sbsparameters):
+        super().__init__()
+        self.symboltable = { }
+        self.symboltable.update({
+            parameter.identifier: parameter
+            for parameter in sbsparameters
+        })
+
+    def generic_visit(self, node):
+        raise NotImplementedError(dump(node))
+
+    # SBS nodes
+
     def visit_ConstFloat4(self, node):
         return node
 
+    def visit_FunctionParameter(self, node):
+        TYPE_TO_CLASS = {
+            SBSNumericalTypes.Float1: SBSGetFloat1,
+            SBSNumericalTypes.Float2: SBSGetFloat2,
+            SBSNumericalTypes.Float3: SBSGetFloat3,
+            SBSNumericalTypes.Float4: SBSGetFloat4,
+        }
+        return TYPE_TO_CLASS[node.type](variable=node.identifier)
+
+    # IR nodes
+
     def visit_Assign(self, node):
-        return (
-            SBSSet(**{
-            'value': node.identifier,
-            'from': self.visit(node.expression),
-            }),
+        sbsnode = SBSSet(
+            value=node.identifier,
+            from_node=self.visit(node.expression),
         )
+        self.symboltable[node.identifier] = sbsnode
+        self.logger.debug(f'{dump(node, depth=_DEBUG_DEPTH)} -> {dump(sbsnode)}')
+        return (sbsnode, )
 
-    def visit_Return(self, node):
-        subtranspiler = FunctionBodyExpressionTranspiler()
-        return (
-            IRReturn(expression=subtranspiler.visit(node.value)),
-        )
+    def visit_BinaryOperation(self, node):
+        sbsnode = self.visit(node.operator)
+        sbsnode.a = self.visit(node.left)
+        sbsnode.b = self.visit(node.right)
+        self.logger.debug(f'{dump(node, depth=_DEBUG_DEPTH)} -> {dump(sbsnode)}')
+        return sbsnode
 
-# class CallOperandsTranspiler(Transpiler):
+    def visit_Division(self, node):
+        sbsnode = SBSDiv()
+        self.logger.debug(f'{dump(node, depth=_DEBUG_DEPTH)} transpiling to {dump(sbsnode)}')
+        return sbsnode
 
-#     def visit_Num(self, node):
-#         return (
-#             Constant(value=node.n),
-#         )
+    SWIZZLE_FIELDS_XYZW = 'xyzw'
+    SWIZZLE_FIELDS_RGBA = 'rgba'
 
-# class FunctionBodyExpressionTranspiler(Transpiler):
+    SWIZZLE_LOOKUP_XYZW = {
+        **{
+            tuple(combination) : SBSSwizzle2
+            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_XYZW, 2)
+        },
+        **{
+            tuple(combination) : SBSSwizzle3
+            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_XYZW, 3)
+        },
+        **{
+            tuple(combination) : SBSSwizzle4
+            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_XYZW, 4)
+        }
+    }
 
-#     def visit_Name(self, node):
-#         if not isinstance(node.ctx, ast.Load):
-#             raise TranspilerError(f'Unexpected node encounter during visit', node)
-#         return IRReference(variable=node.id)
+    SWIZZLE_LOOKUP_RGBA = {
+        **{
+            tuple(combination) : SBSSwizzle2
+            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_RGBA, 2)
+        },
+        **{
+            tuple(combination) : SBSSwizzle3
+            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_RGBA, 3)
+        },
+        **{
+            tuple(combination) : SBSSwizzle4
+            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_RGBA, 4)
+        }
+    }
 
-#     def visit_Num(self, node):
-#         return IRConstant(value=node.n)
+    def visit_Attribute(self, node):
+        if node.variable not in self.symboltable:
+            raise TranspilerError(f'{node.variable} variable not bound', node)
 
-#     def visit_Tuple(self, node):
-#         count = len(node.elts)
-#         if count not in {1, 2, 3, 4}:
-#             raise TranspilerError(f'Tuple count unusupported', node)
+        sbsnodevariable = self.visit(self.symboltable[node.variable])
 
-#         subnodes = list(map(self.visit, node.elts))
+        # TODO preprocess GLSL swizzle at IR level
+        fields_as_tuple = tuple(node.fields)
+        if fields_as_tuple in self.SWIZZLE_LOOKUP_XYZW:
+            SBSSwizzleClass = self.SWIZZLE_LOOKUP_XYZW[fields_as_tuple]
+            Indexer = self.SWIZZLE_FIELDS_XYZW
+        elif fields_as_tuple in self.SWIZZLE_LOOKUP_RGBA:
+            SBSSwizzleClass = self.SWIZZLE_LOOKUP_RGBA[fields_as_tuple]
+            Indexer = self.SWIZZLE_FIELDS_RGBA
+        else:
+            raise TranspilerError(f'{node.fields} unknown attribute fields for {dump(sbsnodevariable)}', node)
 
-#         are_subnodes_constants = all(
-#             isinstance(_, Constant)
-#             for _ in subnodes
-#         )
-#         if not are_subnodes_constants:
-#             # TODO if not constants, we need to transpile to Vector XYZW or Cast operator
-#             raise TranspilerError(f'Tuple elements unusupported', node)
-
-#         return Constant(value=[_.value for _ in subnodes])
-
-#     def visit_BinOp(self, node):
-#         return IRBinaryOperation(
-#             left=self.visit(node.left),
-#             right=self.visit(node.right),
-#             operator=node.op.__class__.__name__.lower(),
-#         )
-
-#     def visit_Call(self, node):
-#         assert isinstance(node.func, ast.Name)
-#         assert isinstance(node.func.ctx, ast.Load)
-
-#         if node.keywords:
-#             raise TranspilerError(f'Call keywords not yet supported', node.keywords)
-
-#         operands_transpiler = CallOperandsTranspiler()
-#         return IRCall(
-#             function=node.func.id,
-#             args=list(
-#                 # i.e. flatmap
-#                 itertools.chain.from_iterable(map(operands_transpiler.visit, node.args)),
-#             ),
-#             kwargs=list(
-#                 # i.e. flatmap
-#                 itertools.chain.from_iterable(
-#                     zip(map(operands_transpiler.visit, node.keywords)),
-#                 )
-#             ),
-#         )
-
-#     def visit_Attribute(self, node):
-#         assert isinstance(node.ctx, ast.Load)
-#         assert isinstance(node.value, ast.Name)
-#         assert isinstance(node.value.ctx, ast.Load)
-
-#         return IRAttribute(
-#             variable=node.value.id,
-#             fields=node.attr,
-#         )
+        sbsnode = SBSSwizzleClass(from_node=sbsnodevariable, **{
+            f'_{idx}': Indexer.index(fieldname)
+            for idx, fieldname in enumerate(node.fields)
+        })
+        self.logger.debug(f'{dump(node, depth=_DEBUG_DEPTH)} transpiling to {dump(sbsnode)}')
+        return sbsnode

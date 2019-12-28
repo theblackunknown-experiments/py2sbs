@@ -234,6 +234,23 @@ class Node(AST, abc.ABC):
 class FunctionNode(Node, abc.ABC):
     pass
 
+class Get(FunctionNode, abc.ABC):
+    _fields = (
+        'variable',
+    )
+
+class GetFloat1(Get):
+    pass
+
+class GetFloat2(Get):
+    pass
+
+class GetFloat3(Get):
+    pass
+
+class GetFloat4(Get):
+    pass
+
 class ConstFloat4(FunctionNode):
     _fields = (
         'x',
@@ -242,8 +259,38 @@ class ConstFloat4(FunctionNode):
         'w',
     )
 
+class Swizzle2(FunctionNode):
+    _fields = (
+        '_0',
+        '_1',
+        'from_node',
+    )
+
+class Swizzle3(FunctionNode):
+    _fields = (
+        '_0',
+        '_1',
+        '_2',
+        'from_node',
+    )
+
+class Swizzle4(FunctionNode):
+    _fields = (
+        '_0',
+        '_1',
+        '_2',
+        '_3',
+        'from_node',
+    )
+
 class Set(FunctionNode):
     _fields = (
         'value',
-        'from'
+        'from_node'
+    )
+
+class Div(FunctionNode):
+    _fields = (
+        'a',
+        'b'
     )
