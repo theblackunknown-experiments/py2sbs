@@ -7,7 +7,7 @@ __author__      = 'Andréa Machizaud'
 import ast
 
 # cf. https://bitbucket.org/takluyver/greentreesnakes/src/default/astpp.py
-def dump(node, annotate_fields=True, include_attributes=False, indent='  '):
+def dump(node, annotate_fields=True, include_attributes=False, indent='  ', depth=None):
     """
     Return a formatted dump of the tree in *node*.  This is mainly useful for
     debugging purposes.  The returned string will show the names and the values
@@ -16,34 +16,56 @@ def dump(node, annotate_fields=True, include_attributes=False, indent='  '):
     numbers and column offsets are not dumped by default.  If this is wanted,
     *include_attributes* can be set to True.
     """
-    def _format(node, level=0):
+    def _format(node, _depth, _max_depth=None):
+        if (_max_depth is not None) and (_depth > _max_depth):
+            return '<...>'
+
+        _next_depth = _depth + 1
+        _indent    = indent * (_depth - 1)
+        _subindent = indent * _depth
         if isinstance(node, ast.AST):
-            fields = [(a, _format(b, level)) for a, b in ast.iter_fields(node)]
+            formatted_fields = [
+                (name, _format(value, _depth=_next_depth, _max_depth=_max_depth))
+                for name, value in ast.iter_fields(node)
+            ]
+
             if include_attributes and node._attributes:
-                fields.extend([(a, _format(getattr(node, a), level))
-                               for a in node._attributes])
-            return ''.join([
-                node.__class__.__name__,
-                '(',
-                ', '.join(('%s=%s' % field for field in fields)
-                           if annotate_fields else
-                           (b for a, b in fields)),
-                ')'])
-        elif isinstance(node, list):
-            lines = ['[']
-            lines.extend((indent * (level + 2) + _format(x, level + 2) + ','
-                         for x in node))
-            if len(lines) > 1:
-                lines.append(indent * (level + 1) + ']')
+                formatted_fields.extend([
+                    (
+                        attributename,
+                        _format(getattr(node, attributename), _depth=_next_depth, _max_depth=_max_depth)
+                    )
+                    for attributename in node._attributes
+                ])
+
+
+            if annotate_fields:
+                return f'{node.__class__.__name__}(' + ', '.join( f'{name}={value}' for name, value in formatted_fields ) + ')'
             else:
-                lines[-1] += ']'
-            return '\n'.join(lines)
+                return f'{node.__class__.__name__}({", ".join( fieldname for fieldname, _ in formatted_fields )})'
+
+        elif isinstance(node, list):
+            nodes = node
+
+            formatted_nodes = [ '[' ]
+            formatted_nodes.extend(
+                f'{_subindent}{_format(subnode, _depth=_next_depth, _max_depth=_max_depth)},'
+                for subnode in nodes
+            )
+
+            if len(formatted_nodes) > 1:
+                formatted_nodes.append(f'{_indent}]')
+            else:
+                formatted_nodes[-1] += ']'
+            return '\n'.join(formatted_nodes)
+
         else:
             return repr(node)
 
     if not isinstance(node, ast.AST):
         raise TypeError('expected AST, got %r' % node.__class__.__name__)
-    return _format(node)
+
+    return _format(node, _depth=1, _max_depth=depth)
 
 class TranspilerError(RuntimeError):
     def __init__(self, msg=None, node=None):
