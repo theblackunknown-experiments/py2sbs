@@ -26,7 +26,12 @@ from py2xyz.sbs.ast import (
     Output            as SBSOutput,
 
     Set               as SBSSet,
+
+    Add               as SBSAdd,
+    Sub               as SBSSub,
+    Mul               as SBSMul,
     Div               as SBSDiv,
+
     GetFloat1         as SBSGetFloat1,
     GetFloat2         as SBSGetFloat2,
     GetFloat3         as SBSGetFloat3,
@@ -62,10 +67,17 @@ class PackageTranspiler(Transpiler):
 class FunctionGraphTranspiler(Transpiler):
 
     def visit_Function(self, node):
-        parameter_transpiler = FunctionGraphParametersTranspiler()
+
+        symboltable = { }
+
+        parameter_transpiler = FunctionGraphParametersTranspiler(symboltable)
         sbsparameters = list(map(parameter_transpiler.visit, node.arguments))
 
-        node_transpiler = FunctionGraphNodesTranspiler(sbsparameters)
+        self.logger.debug(f'symtable after parameters {pformat({ (k, dump(v)) for k,v in symboltable.items()})}')
+
+        node_transpiler = FunctionGraphNodesTranspiler(symboltable)
+
+        self.logger.debug(f'symtable after nodes {pformat({ (k, dump(v)) for k,v in symboltable.items()})}')
 
         sbsnode = SBSFunctionGraph(
             identifier=node.identifier,
@@ -84,6 +96,10 @@ class FunctionGraphTranspiler(Transpiler):
 
 class FunctionGraphParametersTranspiler(Transpiler):
 
+    def __init__(self, symboltable):
+        super().__init__()
+        self.symboltable = symboltable
+
     def visit_TypedParameter(self, node):
 
         # TODO Make sure constant expression is valid for sbs
@@ -91,28 +107,60 @@ class FunctionGraphParametersTranspiler(Transpiler):
             if not isinstance(node.expression, IRConstant):
                 raise TranspilerError(f'Non constant parameter value are not supported', node.expression)
 
-        return SBSFunctionParameter(
+        sbsnode = SBSFunctionParameter(
             identifier=node.identifier,
             type=node.type,
             value=node.expression,
         )
 
+        self.symboltable[node.identifier] = sbsnode
+
+        return sbsnode
+
 class FunctionGraphNodesTranspiler(Transpiler):
 
-    def __init__(self, sbsparameters):
+    SWIZZLE_FIELDS_XYZW = 'xyzw'
+    SWIZZLE_FIELDS_RGBA = 'rgba'
+
+    SWIZZLE_LOOKUP_XYZW = {
+        **{
+            tuple(combination) : SBSSwizzle2
+            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_XYZW, 2)
+        },
+        **{
+            tuple(combination) : SBSSwizzle3
+            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_XYZW, 3)
+        },
+        **{
+            tuple(combination) : SBSSwizzle4
+            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_XYZW, 4)
+        }
+    }
+
+    SWIZZLE_LOOKUP_RGBA = {
+        **{
+            tuple(combination) : SBSSwizzle2
+            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_RGBA, 2)
+        },
+        **{
+            tuple(combination) : SBSSwizzle3
+            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_RGBA, 3)
+        },
+        **{
+            tuple(combination) : SBSSwizzle4
+            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_RGBA, 4)
+        }
+    }
+
+    def __init__(self, symboltable):
         super().__init__()
-        self.symboltable = { }
-        self.symboltable.update({
-            parameter.identifier: parameter
-            for parameter in sbsparameters
-        })
+        self.symboltable = symboltable
 
         # sbs intrinsics
         self.symboltable.update({
             '$pos': SBSGetFloat2('$pos'),
             '$size': SBSGetFloat2('$size'),
         })
-        self.logger.debug(f'initial symtable {pformat({ (k, dump(v)) for k,v in self.symboltable.items()})}')
 
     def generic_visit(self, node):
         raise NotImplementedError(dump(node))
@@ -129,6 +177,15 @@ class FunctionGraphNodesTranspiler(Transpiler):
         return node
 
     def visit_GetFloat4(self, node):
+        return node
+
+    def visit_ConstFloat1(self, node):
+        return node
+
+    def visit_ConstFloat2(self, node):
+        return node
+
+    def visit_ConstFloat3(self, node):
         return node
 
     def visit_ConstFloat4(self, node):
@@ -178,43 +235,25 @@ class FunctionGraphNodesTranspiler(Transpiler):
         self.logger.debug(f'{dump(node, depth=_DEBUG_DEPTH)} -> {dump(sbsnode)}')
         return sbsnode
 
+    def visit_Addition(self, node):
+        sbsnode = SBSAdd()
+        self.logger.debug(f'{dump(node, depth=_DEBUG_DEPTH)} transpiling to {dump(sbsnode)}')
+        return sbsnode
+
+    def visit_Substraction(self, node):
+        sbsnode = SBSSub()
+        self.logger.debug(f'{dump(node, depth=_DEBUG_DEPTH)} transpiling to {dump(sbsnode)}')
+        return sbsnode
+
+    def visit_Multiplication(self, node):
+        sbsnode = SBSMul()
+        self.logger.debug(f'{dump(node, depth=_DEBUG_DEPTH)} transpiling to {dump(sbsnode)}')
+        return sbsnode
+
     def visit_Division(self, node):
         sbsnode = SBSDiv()
         self.logger.debug(f'{dump(node, depth=_DEBUG_DEPTH)} transpiling to {dump(sbsnode)}')
         return sbsnode
-
-    SWIZZLE_FIELDS_XYZW = 'xyzw'
-    SWIZZLE_FIELDS_RGBA = 'rgba'
-
-    SWIZZLE_LOOKUP_XYZW = {
-        **{
-            tuple(combination) : SBSSwizzle2
-            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_XYZW, 2)
-        },
-        **{
-            tuple(combination) : SBSSwizzle3
-            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_XYZW, 3)
-        },
-        **{
-            tuple(combination) : SBSSwizzle4
-            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_XYZW, 4)
-        }
-    }
-
-    SWIZZLE_LOOKUP_RGBA = {
-        **{
-            tuple(combination) : SBSSwizzle2
-            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_RGBA, 2)
-        },
-        **{
-            tuple(combination) : SBSSwizzle3
-            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_RGBA, 3)
-        },
-        **{
-            tuple(combination) : SBSSwizzle4
-            for combination in itertools.combinations_with_replacement(SWIZZLE_FIELDS_RGBA, 4)
-        }
-    }
 
     def visit_Attribute(self, node):
         if node.variable not in self.symboltable:
@@ -239,3 +278,9 @@ class FunctionGraphNodesTranspiler(Transpiler):
         })
         self.logger.debug(f'{dump(node, depth=_DEBUG_DEPTH)} transpiling to {dump(sbsnode)}')
         return sbsnode
+
+    def visit_Reference(self, node):
+        if node.variable not in self.symboltable:
+            raise TranspilerError(f'{node.variable} variable not bound', node)
+
+        return self.symboltable[node.variable]

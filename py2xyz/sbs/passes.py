@@ -41,6 +41,8 @@ from py2xyz.ir.ast import (
 )
 
 from py2xyz.sbs.ast import (
+    ConstFloat2    as SBSConstFloat2,
+    ConstFloat3    as SBSConstFloat3,
     ConstFloat4    as SBSConstFloat4,
 
     Output         as SBSOutput,
@@ -76,6 +78,7 @@ class FoldPow2ExpressionPass(Pass):
 class ResolveConstNode(Pass):
 
     LOOKUP_TABLE = {
+        IRNumericalTypes.Float2: SBSConstFloat2,
         IRNumericalTypes.Float4: SBSConstFloat4,
     }
 
@@ -144,14 +147,26 @@ class SBSFunctionGraphNodeResolvers(ast.NodeVisitor):
         if node not in self.nodes:
             self.nodes.append(node)
 
+    def __visit_BinaryOperation(self, node):
+        self.visit(node.a)
+        self.visit(node.b)
+        self.__add(node)
+
     def visit_Set(self, node):
         self.visit(node.from_node)
         self.__add(node)
 
+    def visit_Add(self, node):
+        self.__visit_BinaryOperation(node)
+
+    def visit_Sub(self, node):
+        self.__visit_BinaryOperation(node)
+
+    def visit_Mul(self, node):
+        self.__visit_BinaryOperation(node)
+
     def visit_Div(self, node):
-        self.visit(node.a)
-        self.visit(node.b)
-        self.__add(node)
+        self.__visit_BinaryOperation(node)
 
     def visit_Output(self, node):
         self.visit(node.node)

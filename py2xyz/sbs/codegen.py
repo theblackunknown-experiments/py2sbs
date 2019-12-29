@@ -19,28 +19,7 @@ from py2xyz.sbs.ast import (
     TextTypes          as SBSTextTypes,
     LogicalTypes       as SBSLogicalTypes,
     NumericalTypes     as SBSNumericalTypes,
-
-    Addition           as SBSAddition,
-    Substraction       as SBSSubstraction,
-    Modulo             as SBSModulo,
-    Multiplication     as SBSMultiplication,
-    Division           as SBSDivision,
-    Negation           as SBSNegation,
-    Dot                as SBSDot,
-    Cross              as SBSCross,
-    Modulus            as SBSModulus,
-    Floor              as SBSFloor,
-    Ceil               as SBSCeil,
-    Cos                as SBSCos,
-    Sin                as SBSSin,
-    SquareRoot         as SBSSquareRoot,
-    NaturalLogarithm   as SBSNaturalLogarithm,
-    Logarithm2         as SBSLogarithm2,
-    NaturalExponential as SBSNaturalExponential,
-    PowerOf2           as SBSPowerOf2,
 )
-
-from py2xyz.sbs.symtable import FunctionSymbolTable
 
 from pysbs.context import Context
 from pysbs.sbsenum import (
@@ -159,28 +138,6 @@ class FunctionGraphParametersGenerator(Generator):
 
 class FunctionGraphNodesGenerator(Generator):
 
-    TYPE_TO_FUNCTION = {
-        SBSLogicalTypes.Boolean   : FunctionEnum.GET_BOOL,
-        SBSNumericalTypes.Integer1: FunctionEnum.GET_INTEGER1 ,
-        SBSNumericalTypes.Integer2: FunctionEnum.GET_INTEGER2 ,
-        SBSNumericalTypes.Integer3: FunctionEnum.GET_INTEGER3 ,
-        SBSNumericalTypes.Integer4: FunctionEnum.GET_INTEGER4 ,
-        SBSNumericalTypes.Float1  : FunctionEnum.GET_FLOAT1   ,
-        SBSNumericalTypes.Float2  : FunctionEnum.GET_FLOAT2   ,
-        SBSNumericalTypes.Float3  : FunctionEnum.GET_FLOAT3   ,
-        SBSNumericalTypes.Float4  : FunctionEnum.GET_FLOAT4   ,
-        SBSTextTypes.String       : FunctionEnum.GET_STRING   ,
-    }
-
-    OPCODE_TO_FUNCTION = {
-        SBSAddition       : FunctionEnum.ADD,
-        SBSSubstraction   : FunctionEnum.SUB,
-        SBSMultiplication : FunctionEnum.MUL,
-        SBSDivision       : FunctionEnum.DIV,
-        SBSModulo         : FunctionEnum.MOD,
-        SBSPowerOf2       : FunctionEnum.POW2,
-    }
-
     def __init__(self, graph, symboltable):
         super().__init__()
         self.graph = graph
@@ -197,16 +154,31 @@ class FunctionGraphNodesGenerator(Generator):
         self.symboltable[node] = sbsnode
         return sbsnode
 
-    def visit_ConstFloat4(self, node):
+    def __visit_Const(self, node, functionenum):
         sbsnode = self.graph.createFunctionNode(
-            aFunction=FunctionEnum.CONST_FLOAT4,
+            aFunction=functionenum,
             aParameters={
-                FunctionEnum.CONST_FLOAT4: [node.x, node.y, node.z, node.w]
+                functionenum: [
+                    value
+                    for _, value in ast.iter_fields(node)
+                ]
             }
         )
         self.logger.debug(f'{dump(node, depth=1)} -> {sbsnode}')
         self.symboltable[node] = sbsnode
         return sbsnode
+
+    def visit_ConstFloat1(self, node):
+        return self.__visit_Const(node,FunctionEnum.CONST_FLOAT1)
+
+    def visit_ConstFloat2(self, node):
+        return self.__visit_Const(node,FunctionEnum.CONST_FLOAT2)
+
+    def visit_ConstFloat3(self, node):
+        return self.__visit_Const(node,FunctionEnum.CONST_FLOAT3)
+
+    def visit_ConstFloat4(self, node):
+        return self.__visit_Const(node,FunctionEnum.CONST_FLOAT4)
 
     def visit_Set(self, node):
         lnode = self.symboltable[node.from_node]
@@ -237,11 +209,11 @@ class FunctionGraphNodesGenerator(Generator):
         self.symboltable[node] = sbsnode
         return sbsnode
 
-    def visit_Div(self, node):
+    def __visit_BinaryOperation(self, node, functionenum):
         anode = self.symboltable[node.a]
         bnode = self.symboltable[node.b]
 
-        sbsnode = self.graph.createFunctionNode(FunctionEnum.DIV)
+        sbsnode = self.graph.createFunctionNode(functionenum)
 
         self.graph.connectNodes(anode, sbsnode, FunctionInputEnum.A)
         self.graph.connectNodes(bnode, sbsnode, FunctionInputEnum.B)
@@ -249,3 +221,15 @@ class FunctionGraphNodesGenerator(Generator):
         self.logger.debug(f'{dump(node, depth=1)} -> {sbsnode}')
         self.symboltable[node] = sbsnode
         return sbsnode
+
+    def visit_Add(self, node):
+        return self.__visit_BinaryOperation(node, FunctionEnum.ADD)
+
+    def visit_Sub(self, node):
+        return self.__visit_BinaryOperation(node, FunctionEnum.SUB)
+
+    def visit_Mul(self, node):
+        return self.__visit_BinaryOperation(node, FunctionEnum.MUL)
+
+    def visit_Div(self, node):
+        return self.__visit_BinaryOperation(node, FunctionEnum.DIV)

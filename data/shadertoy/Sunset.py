@@ -9,7 +9,7 @@ video: https://www.youtube.com/watch?v=0ifChJ0nJfM
 # TODO add in/out glsl annotations
 def mainImage( fragColor : vec4, fragCoord : vec2 ):
     p = fragCoord.xy / iResolution.xy
-    # q = p - vec2(0.33,0.7)
+    q = p - vec2(0.33,0.7)
 
     # col = mix( vec3(1.0,0.3,0.0), vec3(1.0,0.8,0.3), sqrt(p.y) )
 

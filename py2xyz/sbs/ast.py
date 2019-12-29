@@ -72,128 +72,6 @@ ANY_VECTOR_TYPES = ANY_VECTOR_INTEGRAL_TYPES | ANY_VECTOR_FLOAT_TYPES
 
 ANY_TYPES = ANY_TEXT_TYPES | ANY_LOGICAL_TYPES | ANY_NUMERICAL_TYPES
 
-class Operator(ast.AST, abc.ABC):
-    def signatures():
-        return self.SIGNATURES
-
-_BOOLEAN_UNARY_OPERATION_SIGNATURES = [
-    ( (_,), _ )
-    for _ in ANY_LOGICAL_TYPES
-]
-
-_BOOLEAN_BINARY_OPERATION_SIGNATURES = [
-    ( (_, _), _ )
-    for _ in ANY_LOGICAL_TYPES
-]
-
-_FLOAT_BINARY_OPERATION_SIGNATURES = [
-    ( (_, _), _ )
-    for _ in { NumericalTypes.Float1 }
-]
-
-_REAL_BINARY_OPERATION_SIGNATURES = [
-    ( (_, _), _ )
-    for _ in ANY_NUMERICAL_TYPES
-]
-
-_NON_VECTOR_BINARY_OPERATION_SIGNATURES = [
-    ( (_, _), _ )
-    for _ in ANY_NUMERICAL_TYPES - ANY_VECTOR_TYPES
-]
-
-_VECTOR_BINARY_OPERATION_SIGNATURES = [
-    ( (_, _), _ )
-    for _ in ANY_VECTOR_TYPES
-]
-
-_FLOAT_UNARY_OPERATION_SIGNATURES = [
-    ( (_,), _ )
-    for _ in { NumericalTypes.Float1 }
-]
-
-_REAL_UNARY_OPERATION_SIGNATURES = [
-    ( (_,), _ )
-    for _ in ANY_NUMERICAL_TYPES
-]
-
-# Maths
-
-class Addition(Operator):
-    SIGNATURES = _REAL_BINARY_OPERATION_SIGNATURES
-
-class Substraction(Operator):
-    SIGNATURES = _REAL_BINARY_OPERATION_SIGNATURES
-
-class Modulo(Operator):
-    SIGNATURES = _REAL_BINARY_OPERATION_SIGNATURES
-
-class Multiplication(Operator):
-    SIGNATURES = _REAL_BINARY_OPERATION_SIGNATURES
-
-# TODO Scalar Multiplication
-
-class Division(Operator):
-    SIGNATURES = _REAL_BINARY_OPERATION_SIGNATURES
-
-class Negation(Operator):
-    SIGNATURES = _REAL_UNARY_OPERATION_SIGNATURES
-
-# Linear Algebra & Maths +
-
-class Dot(Operator):
-    SIGNATURES = _VECTOR_BINARY_OPERATION_SIGNATURES
-
-class Cross(Operator):
-    SIGNATURES = _VECTOR_BINARY_OPERATION_SIGNATURES
-
-class Modulus(Operator):
-    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
-
-class Floor(Operator):
-    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
-
-class Ceil(Operator):
-    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
-
-class Cos(Operator):
-    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
-
-class Sin(Operator):
-    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
-
-class SquareRoot(Operator):
-    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
-
-class NaturalLogarithm(Operator):
-    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
-
-class Logarithm2(Operator):
-    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
-
-class NaturalExponential(Operator):
-    SIGNATURES = _FLOAT_UNARY_OPERATION_SIGNATURES
-
-class PowerOf2(Operator):
-    SIGNATURES = _FLOAT_BINARY_OPERATION_SIGNATURES
-
-# Logicals
-
-class And(Operator):
-    SIGNATURES = _BOOLEAN_BINARY_OPERATION_SIGNATURES
-
-class Or(Operator):
-    SIGNATURES = _BOOLEAN_BINARY_OPERATION_SIGNATURES
-
-class Not(Operator):
-    SIGNATURES = _BOOLEAN_UNARY_OPERATION_SIGNATURES
-
-# Comparison
-
-class Equals(Operator):
-    SIGNATURES = _NON_VECTOR_BINARY_OPERATION_SIGNATURES
-
-# TODO >, >=, <, <=
-
 class AST(ast.AST, abc.ABC):
     pass
 
@@ -253,6 +131,24 @@ class GetFloat3(Get):
 class GetFloat4(Get):
     pass
 
+class ConstFloat1(FunctionNode):
+    _fields = (
+        'x',
+    )
+
+class ConstFloat2(FunctionNode):
+    _fields = (
+        'x',
+        'y',
+    )
+
+class ConstFloat3(FunctionNode):
+    _fields = (
+        'x',
+        'y',
+        'z',
+    )
+
 class ConstFloat4(FunctionNode):
     _fields = (
         'x',
@@ -291,8 +187,20 @@ class Set(FunctionNode):
         'from_node'
     )
 
-class Div(FunctionNode):
+class BinaryOperation(FunctionNode, abc.ABC):
     _fields = (
         'a',
         'b'
     )
+
+class Add(BinaryOperation):
+    pass
+
+class Sub(BinaryOperation):
+    pass
+
+class Mul(BinaryOperation):
+    pass
+
+class Div(BinaryOperation):
+    pass
