@@ -109,7 +109,7 @@ class FunctionGraphNodesTranspiler(Transpiler):
 
         # sbs intrinsics
         self.symboltable.update({
-            '$uv': SBSGetFloat2('$uv'),
+            '$pos': SBSGetFloat2('$pos'),
             '$size': SBSGetFloat2('$size'),
         })
         self.logger.debug(f'initial symtable {pformat({ (k, dump(v)) for k,v in self.symboltable.items()})}')

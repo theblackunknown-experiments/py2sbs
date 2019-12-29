@@ -97,7 +97,7 @@ class ResolveConstNode(Pass):
 class ResolveShaderToyIntrinsics(Pass):
 
     LOOKUP_TABLE = {
-        # 'fragCoord'  : '$uv', # TODO for now fragCoord is considered as function parameter -> no need to remap it to $uv
+        # 'fragCoord'  : '$pos', # TODO for now fragCoord is considered as function parameter -> no need to remap it to $pos
         'iResolution': '$size',
     }
 

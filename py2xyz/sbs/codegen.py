@@ -3,11 +3,13 @@ import io
 import ast
 import logging
 
+from pprint import pformat
+
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-from py2xyz import dump
+from py2xyz import dump, TranspilerError
 
 from py2xyz.sbs.ast import (
     Package            as SBSPackage,
@@ -51,6 +53,9 @@ from pysbs.sbsgenerator import createSBSDocument
 from pysbs.autograph.ag_layout import layoutDoc as layout
 
 class Generator(ast.NodeVisitor):
+    def __init__(self):
+        self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
+
     def generic_visit(self, node):
         raise TranspilerError(node=node)
 
@@ -100,6 +105,30 @@ class PackageGenerator(Generator):
 
 class FunctionGraphGenerator(Generator):
 
+    def __init__(self, graph):
+        super().__init__()
+        self.graph = graph
+
+    def visit_FunctionGraph(self, node):
+        symboltable = { }
+
+        subgenerator_parameters = FunctionGraphParametersGenerator(self.graph, symboltable)
+        for subnode in node.parameters:
+            subgenerator_parameters.visit(subnode)
+
+        self.logger.debug(f'symtable after parameters: {pformat(symboltable)}')
+
+        subgenerator_nodes = FunctionGraphNodesGenerator(self.graph, symboltable)
+        for subnode in node.nodes:
+            subgenerator_nodes.visit(subnode)
+
+        self.logger.debug(f'symtable after nodes: {pformat(symboltable)}')
+
+        for sbsnode in ( symboltable[_.node] for _ in node.outputs ):
+            self.graph.setOutputNode(sbsnode)
+
+class FunctionGraphParametersGenerator(Generator):
+
     DEFAULT_WIDGET_FROM_TYPE = {
         SBSNumericalTypes.Integer1: WidgetEnum.SLIDER_INT1,
         SBSNumericalTypes.Integer2: WidgetEnum.SLIDER_INT2,
@@ -110,6 +139,25 @@ class FunctionGraphGenerator(Generator):
         SBSNumericalTypes.Float3  : WidgetEnum.SLIDER_FLOAT3,
         SBSNumericalTypes.Float4  : WidgetEnum.SLIDER_FLOAT4,
     }
+
+    def __init__(self, graph, symboltable):
+        super().__init__()
+        self.graph = graph
+        self.symboltable = symboltable
+
+    def visit_FunctionParameter(self, node):
+        sbsparameter = self.graph.addInputParameter(
+            aIdentifier=node.identifier,
+            aWidget=self.DEFAULT_WIDGET_FROM_TYPE[node.type],
+            # TODO default value
+        )
+        self.symboltable.update({
+            node.identifier: sbsparameter
+        })
+        self.logger.debug(f'{dump(node, depth=2)} -> {sbsparameter}')
+        return sbsparameter
+
+class FunctionGraphNodesGenerator(Generator):
 
     TYPE_TO_FUNCTION = {
         SBSLogicalTypes.Boolean   : FunctionEnum.GET_BOOL,
@@ -133,72 +181,71 @@ class FunctionGraphGenerator(Generator):
         SBSPowerOf2       : FunctionEnum.POW2,
     }
 
-    def __init__(self, graph):
+    def __init__(self, graph, symboltable):
+        super().__init__()
         self.graph = graph
-        self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
+        self.symboltable = symboltable
 
-    def visit_FunctionGraph(self, node):
-        self.symbol_table = FunctionSymbolTable(node.identifier)
-        self.logger.debug(f'{node} - generated function symbol table')
-
-        for subnode in node.parameters:
-            self.visit(subnode)
-
-        for subnode in node.nodes:
-            self.visit(subnode)
-
-    def visit_FunctionParameter(self, node):
-        sbsparameter = self.graph.addInputParameter(
-            aIdentifier=node.identifier,
-            aWidget=self.DEFAULT_WIDGET_FROM_TYPE[node.type],
-            # TODO default value
-        )
-        self.symbol_table.update({
-            node.identifier: node
-        })
-        self.logger.debug(f'{node} - generated sbsparameter {sbsparameter}')
-        return sbsparameter
-
-    def visit_Output(self, node):
-        sbsnode = self.visit(node.expression)
-        self.graph.setOutputNode(sbsnode)
-        self.logger.debug(f'{node} - generated output node {sbsnode}')
-        return sbsnode
-
-    def visit_UnaryOperation(self, node):
-        operand_node = self.visit(node.operand)
-        operator_node = self.visit(node.operator)
-
-        self.graph.connectNodes(operand_node, operator_node, aRightNodeInput=FunctionInputEnum.A)
-
-        self.logger.debug(f'{node} - connected operator to its input')
-        return operator_node
-
-    def visit_BinaryOperation(self, node):
-        left_node = self.visit(node.left)
-        right_node = self.visit(node.right)
-        operator_node = self.visit(node.operator)
-
-        self.graph.connectNodes(left_node, operator_node, aRightNodeInput=FunctionInputEnum.A)
-        self.graph.connectNodes(right_node, operator_node, aRightNodeInput=FunctionInputEnum.B)
-
-        self.logger.debug(f'{node} - connected operator to its inputs')
-        return operator_node
-
-    def visit_Get(self, node):
-        parameter = self.symbol_table.lookup(node.identifier)
-        sbsfunction = self.TYPE_TO_FUNCTION[parameter.type]
+    def visit_GetFloat2(self, node):
         sbsnode = self.graph.createFunctionNode(
-            aFunction=sbsfunction,
+            aFunction=FunctionEnum.GET_FLOAT2,
             aParameters={
-                sbsfunction: node.identifier
+                FunctionEnum.GET_FLOAT2: node.variable
             }
         )
-        self.logger.debug(f'{node} - generated get node {sbsnode}')
+        self.logger.debug(f'{dump(node, depth=1)} -> {sbsnode}')
+        self.symboltable[node] = sbsnode
         return sbsnode
 
-    def visit_Operator(self, node):
-        sbsfunction = self.OPCODE_TO_FUNCTION[node.opcode]
-        sbsnode = self.graph.createFunctionNode(sbsfunction)
-        self.logger.debug(f'{node} - generated operator node {sbsnode}')
+    def visit_ConstFloat4(self, node):
+        sbsnode = self.graph.createFunctionNode(
+            aFunction=FunctionEnum.CONST_FLOAT4,
+            aParameters={
+                FunctionEnum.CONST_FLOAT4: [node.x, node.y, node.z, node.w]
+            }
+        )
+        self.logger.debug(f'{dump(node, depth=1)} -> {sbsnode}')
+        self.symboltable[node] = sbsnode
+        return sbsnode
+
+    def visit_Set(self, node):
+        lnode = self.symboltable[node.from_node]
+        sbsnode = self.graph.createFunctionNode(
+            aFunction=FunctionEnum.SET,
+            aParameters={
+                FunctionEnum.SET: node.value
+            }
+        )
+        self.graph.connectNodes(lnode, sbsnode)
+        self.logger.debug(f'{dump(node, depth=1)} -> {sbsnode}')
+        self.symboltable[node] = sbsnode
+        return sbsnode
+
+    def visit_Swizzle2(self, node):
+        lnode = self.symboltable[node.from_node]
+        sbsnode = self.graph.createFunctionNode(
+            aFunction=FunctionEnum.SWIZZLE2,
+            aParameters={
+                FunctionEnum.SWIZZLE2: [
+                    node._0,
+                    node._1,
+                ]
+            }
+        )
+        self.graph.connectNodes(lnode, sbsnode, FunctionInputEnum.VECTOR)
+        self.logger.debug(f'{dump(node, depth=1)} -> {sbsnode}')
+        self.symboltable[node] = sbsnode
+        return sbsnode
+
+    def visit_Div(self, node):
+        anode = self.symboltable[node.a]
+        bnode = self.symboltable[node.b]
+
+        sbsnode = self.graph.createFunctionNode(FunctionEnum.DIV)
+
+        self.graph.connectNodes(anode, sbsnode, FunctionInputEnum.A)
+        self.graph.connectNodes(bnode, sbsnode, FunctionInputEnum.B)
+
+        self.logger.debug(f'{dump(node, depth=1)} -> {sbsnode}')
+        self.symboltable[node] = sbsnode
         return sbsnode
